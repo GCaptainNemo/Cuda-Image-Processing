@@ -79,9 +79,9 @@ namespace conv {
 		dim3 block_size(thread_num, 1, 1);
 		conv::conv_kernel <<< grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
 
-		float * h_out = new float[img_cols * img_rows];
-		HANDLE_ERROR(cudaMemcpy(h_out, gpu_result, img_size, cudaMemcpyDeviceToHost));
-		dst = cv::Mat(img_rows, img_cols, CV_32FC1, h_out);//这里不一样
+		float * cpu_result = new float[img_cols * img_rows];
+		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_result, img_size, cudaMemcpyDeviceToHost));
+		dst = cv::Mat(img_rows, img_cols, CV_32FC1, cpu_result);//这里不一样
 		printf("row = 0, col=0, val = %f", dst.at<float>(0, 0));
 
 		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
