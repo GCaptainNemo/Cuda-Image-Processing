@@ -95,18 +95,8 @@ namespace harris
 			(sobel_x_img_vec, sobel_y_img_vec, gpu_result_vec, img_rows, img_cols, block_size, prop);
 		
 		
-		printf("finish kernel!!!\n");
-		cudaError_t cudaStatus = cudaGetLastError();
-		if (cudaStatus != cudaSuccess)
-		{
-			printf("addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		}
-		// getLastCudaError("Kernel execution failed");
-
 		float * cpu_result_vec = (float *)malloc(img_size);
-
-		//HANDLE_ERROR(cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost));
-		cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost);
+		HANDLE_ERROR(cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost));
 
 		dst = cv::Mat(img_rows, img_cols, CV_32FC1, cpu_result_vec).clone();
 		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
@@ -129,19 +119,17 @@ namespace harris
 		cudaDeviceReset();
 	}
 
-	__global__ void harris_kernal(float * sobel_x_vec, float * sobel_y_vec, float * result_vec, 
+	__global__ void harris_kernal(float * sobel_x_vec, float * sobel_y_vec, float * gpu_result_vec, 
 		const int &img_row, const int &img_col, const int & block_size, 
 		const float & prop) 
 	{
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x;
 		int index = block_id * blockDim.x + thread_id;
-		if (block_id == 0 ||thread_id == 0)
-		{
-			printf("thread_id = %d, block_id = %d, index = %d\n", thread_id, block_id, index);
-		}
+		
 		if (index >= img_row * img_col)
 		{
+			printf("index = %d\n", index);
 			return;
 		}
 		int pixel_col = index % img_col;
@@ -152,6 +140,8 @@ namespace harris
 		float gradient_xy_sum = 0;
 		float gradient_xx_sum = 0;
 		float gradient_yy_sum = 0;
+		float num = block_size * block_size;
+
 		for (int i = 0; i < block_size; ++i)
 		{
 			for (int j = 0; j < block_size; ++j) 
@@ -165,29 +155,26 @@ namespace harris
 				{
 				}
 				else {
-					gradient_x = sobel_x_vec[cur_row * img_row + cur_col];
-					gradient_y = sobel_y_vec[cur_row * img_row + cur_col];
+					gradient_x = sobel_x_vec[cur_row * img_col + cur_col];
+					gradient_y = sobel_y_vec[cur_row * img_col + cur_col];
 				}
-				gradient_x_sum += gradient_x;
-				gradient_y_sum += gradient_y;
-				gradient_xx_sum += gradient_x * gradient_x;
-				gradient_yy_sum += gradient_y * gradient_y;
-				gradient_xy_sum += gradient_x * gradient_y;
+				gradient_x_sum += gradient_x / num;
+				gradient_y_sum += gradient_y / num;
+				gradient_xx_sum += gradient_x * gradient_x / num / num;
+				gradient_yy_sum += gradient_y * gradient_y / num / num;
+				gradient_xy_sum += gradient_x * gradient_y / num / num;
 			}
 		}
-		float size = (float) block_size * block_size;
-		float cov_mat_00 = gradient_xx_sum / size  -
-			gradient_x_sum * gradient_x_sum / size / size;
-		float cov_mat_01 = gradient_xy_sum / size -
-			gradient_x_sum * gradient_y_sum / size / size;
-		float cov_mat_11 = gradient_yy_sum / size;
+		float cov_mat_00 = gradient_xx_sum - gradient_x_sum * gradient_x_sum ;
+		float cov_mat_01 = gradient_xy_sum - gradient_x_sum * gradient_y_sum ;
+		float cov_mat_11 = gradient_yy_sum - gradient_y_sum * gradient_y_sum;
 		// determinent - k * trace() ^ 2
 		float discri_cond = cov_mat_00 * cov_mat_11 - cov_mat_01 * cov_mat_01 - 
 			prop * (cov_mat_00 + cov_mat_11) * (cov_mat_00 + cov_mat_11);
-		result_vec[index] = discri_cond;
+		gpu_result_vec[index] = discri_cond;
 		if (index == 0) 
 		{
-			printf("result_vec[0] = %f", result_vec[index]);
+			printf("result_vec[0] = %f", gpu_result_vec[index]);
 		}
 	}
 }
