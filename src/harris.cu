@@ -3,6 +3,8 @@
 #include "opencv2/opencv.hpp"
 #include "../include/conv.h"
 #include "../include/utils.h"
+#include <math.h>
+
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
 
@@ -31,9 +33,10 @@ namespace harris
 		cv::waitKey(0);
 	}
 
-	void cuda_harris(cv::Mat & src, cv::Mat & dst, int & block_size, const float & threshold, const int &aperture_size = 3)
+	void cuda_harris(cv::Mat & src, cv::Mat & dst, const int & block_size, const float & prop, 
+		const int &aperture_size)
 	{
-		
+		cudaSetDevice(0);
 		// 3 x 3 Sobel operator
 		float * sobel_y = new float[aperture_size * aperture_size];
 		sobel_y[0] = -1.; sobel_y[1] = -2.; sobel_y[2] = -1.;
@@ -49,16 +52,26 @@ namespace harris
 		conv::cuda_conv(src, sobel_x_img, sobel_x, aperture_size);
 		cv::Mat sobel_y_img;
 		conv::cuda_conv(src, sobel_y_img, sobel_y, aperture_size);
+		printf("conv get gradient map finish \n");
+		// ///////////////////////////////////////////
+		
+		cv::namedWindow("sobel_x", cv::WINDOW_NORMAL);
+		cv::imshow("sobel_x", sobel_x_img);
+		cv::waitKey(0);
+
 
 
 		int img_rows = src.rows;
 		int img_cols = src.cols;
+		printf("\n src_img size = [%d, %d]\n", img_rows, img_cols);
+		printf("\n gradient_img size = [%d, %d]\n", sobel_x_img.rows, sobel_x_img.cols);
 
 
 		size_t img_size = img_cols * img_rows * sizeof(float);
 		float * sobel_x_vec;
 		float * sobel_y_vec;
 		float * gpu_result_vec;
+
 		// memory allocate
 		HANDLE_ERROR(cudaMalloc((void **)& sobel_x_vec, img_size));
 		HANDLE_ERROR(cudaMalloc((void **)& sobel_y_vec, img_size));
@@ -71,32 +84,47 @@ namespace harris
 
 		int thread_num = getThreadNum();
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
-		dim3 grid_size(block_num, 1, 1);
-		dim3 block_size(thread_num, 1, 1);
-		conv::conv_kernel << <grid_size, block_size >> > 
-			(sobel_x_vec, sobel_y_vec, result_vec, img_cols, img_rows, block_size);
+		printf("block_num = %d, thread_num = %d", block_num, thread_num);
+		dim3 thread_grid_size(block_num, 1, 1);
+		dim3 thread_block_size(thread_num, 1, 1);
 		
-		float * cpu_result_vec;
+		harris::harris_kernal<<< thread_grid_size, thread_block_size >>>
+			(sobel_x_vec, sobel_y_vec, gpu_result_vec, img_rows, img_cols, block_size, prop);
+		
+		float * cpu_result_vec = new float[img_cols * img_rows];
 		HANDLE_ERROR(cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost));
+
+		
 		dst = cv::Mat(img_rows, img_cols, CV_32FC1, cpu_result_vec);
-		//conv::conv_kernel << < >> > ()
+		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
+
+		HANDLE_ERROR(cudaFree(sobel_x_vec));
+		HANDLE_ERROR(cudaFree(sobel_y_vec));
+		HANDLE_ERROR(cudaFree(gpu_result_vec));
+		cudaDeviceReset();
 	}
 
 	__global__ void harris_kernal(float * sobel_x_vec, float * sobel_y_vec, float * result_vec, 
-		const int &img_row, const int &img_col, const int & block_size) 
+		const int &img_row, const int &img_col, const int & block_size, 
+		const float & prop) 
 	{
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x;
 		int index = block_id * blockDim.x + thread_id;
-		int pixel_col = index % img_col;
-		int pixel_row = index / img_col;
+		printf("thread_id = %d, block_id = %d, index = %d\n", thread_id, block_id, index);
 		if (index >= img_row * img_col)
 		{
 			return;
 		}
+		int pixel_col = index % img_col;
+		int pixel_row = index / img_col;
 		// calculate covariance matrix
-		float gradient_x_xu = 0;
-		for (int i = 0; i < block_size; ++i) 
+		float gradient_x_sum = 0;
+		float gradient_y_sum = 0;
+		float gradient_xy_sum = 0;
+		float gradient_xx_sum = 0;
+		float gradient_yy_sum = 0;
+		for (int i = 0; i < block_size; ++i)
 		{
 			for (int j = 0; j < block_size; ++j) 
 			{
@@ -112,12 +140,27 @@ namespace harris
 					gradient_x = sobel_x_vec[cur_row * img_row + cur_col];
 					gradient_y = sobel_y_vec[cur_row * img_row + cur_col];
 				}
+				gradient_x_sum += gradient_x;
+				gradient_y_sum += gradient_y;
+				gradient_xx_sum += gradient_x * gradient_x;
+				gradient_yy_sum += gradient_y * gradient_y;
+				gradient_xy_sum += gradient_x * gradient_y;
 			}
 		}
-		
-			
+		float size = (float) block_size * block_size;
+		float cov_mat_00 = gradient_xx_sum / size  -
+			gradient_x_sum * gradient_x_sum / size / size;
+		float cov_mat_01 = gradient_xy_sum / size -
+			gradient_x_sum * gradient_y_sum / size / size;
+		float cov_mat_11 = gradient_yy_sum / size;
+		// determinent - k * trace() ^ 2
+		float discri_cond = cov_mat_00 * cov_mat_11 - cov_mat_01 * cov_mat_01 - 
+			prop * (cov_mat_00 + cov_mat_11) * (cov_mat_00 + cov_mat_11);
+		result_vec[index] = discri_cond;
+		if (index == 0) 
+		{
+			printf("result_vec[0] = %f", result_vec[index]);
+		}
 	}
-
-
 }
 

@@ -45,6 +45,7 @@ namespace conv {
 	void cuda_conv(cv::Mat & src, cv::Mat & dst, float * kernel, int kernel_dim)
 	{
 		// read linshi and convert to gray image
+		cudaSetDevice(0);
 		cv::Mat linshi;
 		cv::cvtColor(src, linshi, cv::COLOR_BGR2GRAY);
 		printf("origin gray img\n");
@@ -89,6 +90,7 @@ namespace conv {
 		HANDLE_ERROR(cudaFree(gpu_img));
 		HANDLE_ERROR(cudaFree(gpu_kernel));
 		HANDLE_ERROR(cudaFree(gpu_result));
+		cudaDeviceReset();
 	}
 
 	void opencv_conv(const char * address)
