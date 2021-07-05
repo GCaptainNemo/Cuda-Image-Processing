@@ -15,6 +15,6 @@ cmake ..
 
 ## 三、已实现功能
 
-1. 图像2D卷积(namespace conv)
-2. 图像Harris角点提取(namespace harris)
+1. 图像2D卷积(`namespace conv`)
+2. 图像Harris角点提取(`namespace harris`)
 
