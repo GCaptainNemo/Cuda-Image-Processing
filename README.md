@@ -1,8 +1,8 @@
-# CUDA-CONV
+# CUDA-Harris
 
 ## 一、介绍
 
-本仓库用CUDA编程实现图像的2D卷积操作，相比于串行的方式，使用GPU调用多线程完成卷积速度要快得多。
+本仓库用CUDA编程实现图像的卷积和Harris角点提取操作，相比于串行的方式，使用GPU调用多线程完成速度要快得多。(目前提取效果与OpenCV自带的Harris角点API有一定差异)
 
 ## 二、安装方法 
 
@@ -13,5 +13,5 @@ cd build
 cmake ..
 ```
 
-main.cu中给了一个Prewitt算子的demo，使用其它卷积核的方法类似。
+main.cu中给了一个Prewitt算子和提取Harris角点的demo。
 
