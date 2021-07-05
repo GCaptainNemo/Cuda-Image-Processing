@@ -6,7 +6,7 @@
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
 namespace conv {
-	__global__ void conv(float *gpu_img, float * gpu_kernel, float * gpu_result,
+	__global__ void conv_kernel(float *gpu_img, float * gpu_kernel, float * gpu_result,
 		const int img_cols, const int img_rows, const int kernel_dim)
 	{
 		int thread_id = threadIdx.x;
@@ -42,16 +42,16 @@ namespace conv {
 	}
 
 
-	void cuda_conv(const char * address, float * kernel, int kernel_dim)
+	void cuda_conv(cv::Mat & src, cv::Mat & dst, float * kernel, int kernel_dim)
 	{
-		// read img and convert to gray image
-		cv::Mat img = cv::imread("../data/img1.png");
-		cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
+		// read linshi and convert to gray image
+		cv::Mat linshi;
+		cv::cvtColor(src, linshi, cv::COLOR_BGR2GRAY);
 		printf("origin gray img\n");
 		// uchar to float
-		img.convertTo(img, CV_32FC1);
-		int img_cols = img.cols;
-		int img_rows = img.rows;
+		linshi.convertTo(linshi, CV_32FC1);
+		int img_cols = linshi.cols;
+		int img_rows = linshi.rows;
 
 
 		float * gpu_img;
@@ -65,8 +65,8 @@ namespace conv {
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_img, img_size));
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_result, img_size));
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_size));
-		// memory copy kernel and img from host to device
-		HANDLE_ERROR(cudaMemcpy(gpu_img, img.data, img_size, cudaMemcpyHostToDevice));
+		// memory copy kernel and linshi from host to device
+		HANDLE_ERROR(cudaMemcpy(gpu_img, linshi.data, img_size, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size, cudaMemcpyHostToDevice));
 
 		// //////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,18 +77,14 @@ namespace conv {
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
-		conv << <grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
+		conv::conv_kernel <<< grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
 
 		float * h_out = new float[img_cols * img_rows];
 		HANDLE_ERROR(cudaMemcpy(h_out, gpu_result, img_size, cudaMemcpyDeviceToHost));
-		cv::Mat image1_(img_rows, img_cols, CV_32FC1, h_out);//这里不一样
-		printf("row = 0, col=0, val = %f", image1_.at<float>(0, 0));
+		dst = cv::Mat(img_rows, img_cols, CV_32FC1, h_out);//这里不一样
+		printf("row = 0, col=0, val = %f", dst.at<float>(0, 0));
 
-		cv::normalize(image1_, image1_, 1.0, 0.0, cv::NORM_MINMAX);
-
-		cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);
-		cv::imshow("sobel-image", image1_);
-		cv::waitKey();
+		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
 
 		HANDLE_ERROR(cudaFree(gpu_img));
 		HANDLE_ERROR(cudaFree(gpu_kernel));
