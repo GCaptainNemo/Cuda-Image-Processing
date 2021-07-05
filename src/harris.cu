@@ -36,13 +36,16 @@ namespace harris
 	void cuda_harris(cv::Mat & src, cv::Mat & dst, const int & block_size, const float & prop, 
 		const int &aperture_size)
 	{
+		
 		cudaSetDevice(0);
 		// 3 x 3 Sobel operator
-		float * sobel_y = new float[aperture_size * aperture_size];
+		//float * sobel_y = new float[aperture_size * aperture_size];
+		float * sobel_y = (float *)malloc(aperture_size * aperture_size * sizeof(float));
 		sobel_y[0] = -1.; sobel_y[1] = -2.; sobel_y[2] = -1.;
 		sobel_y[3] =  0.; sobel_y[4] = 0.; sobel_y[5] = 0.;
 		sobel_y[6] =  1.; sobel_y[7] = 2.; sobel_y[8] = 1.;
-		float * sobel_x = new float[aperture_size * aperture_size];
+		//float * sobel_x = new float[aperture_size * aperture_size];
+		float * sobel_x = (float *)malloc(aperture_size * aperture_size * sizeof(float));
 		sobel_x[0] = -1.; sobel_x[1] = 0.; sobel_x[2] = 1.;
 		sobel_x[3] = -2.; sobel_x[4] = 0.; sobel_x[5] = 2.;
 		sobel_x[6] = -1.; sobel_x[7] = 0.; sobel_x[8] = 1.;
@@ -68,39 +71,61 @@ namespace harris
 
 
 		size_t img_size = img_cols * img_rows * sizeof(float);
-		float * sobel_x_vec;
-		float * sobel_y_vec;
+		float * sobel_x_img_vec;
+		float * sobel_y_img_vec;
 		float * gpu_result_vec;
 
 		// memory allocate
-		HANDLE_ERROR(cudaMalloc((void **)& sobel_x_vec, img_size));
-		HANDLE_ERROR(cudaMalloc((void **)& sobel_y_vec, img_size));
+		HANDLE_ERROR(cudaMalloc((void **)& sobel_x_img_vec, img_size));
+		HANDLE_ERROR(cudaMalloc((void **)& sobel_y_img_vec, img_size));
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_result_vec, img_size));
 
 		// memory copy 
-		HANDLE_ERROR(cudaMemcpy(sobel_x_vec, sobel_x_img.data, img_size, cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(sobel_y_vec, sobel_y_img.data, img_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(sobel_x_img_vec, sobel_x_img.data, img_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(sobel_y_img_vec, sobel_y_img.data, img_size, cudaMemcpyHostToDevice));
 
 
 		int thread_num = getThreadNum();
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
-		printf("block_num = %d, thread_num = %d", block_num, thread_num);
+		printf("block_num = %d, thread_num = %d !\n", block_num, thread_num);
 		dim3 thread_grid_size(block_num, 1, 1);
 		dim3 thread_block_size(thread_num, 1, 1);
 		
 		harris::harris_kernal<<< thread_grid_size, thread_block_size >>>
-			(sobel_x_vec, sobel_y_vec, gpu_result_vec, img_rows, img_cols, block_size, prop);
+			(sobel_x_img_vec, sobel_y_img_vec, gpu_result_vec, img_rows, img_cols, block_size, prop);
 		
-		float * cpu_result_vec = new float[img_cols * img_rows];
-		HANDLE_ERROR(cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost));
+		
+		printf("finish kernel!!!\n");
+		cudaError_t cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess)
+		{
+			printf("addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		}
+		// getLastCudaError("Kernel execution failed");
 
-		
-		dst = cv::Mat(img_rows, img_cols, CV_32FC1, cpu_result_vec);
+		float * cpu_result_vec = (float *)malloc(img_size);
+
+		//HANDLE_ERROR(cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost));
+		cudaMemcpy(cpu_result_vec, gpu_result_vec, img_size, cudaMemcpyDeviceToHost);
+
+		dst = cv::Mat(img_rows, img_cols, CV_32FC1, cpu_result_vec).clone();
 		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
 
-		HANDLE_ERROR(cudaFree(sobel_x_vec));
-		HANDLE_ERROR(cudaFree(sobel_y_vec));
+		cv::namedWindow("dst_img", cv::WINDOW_NORMAL);
+		cv::imshow("dst_img", dst);
+		cv::waitKey(0);
+		
+
+		HANDLE_ERROR(cudaFree(sobel_x_img_vec));
+		HANDLE_ERROR(cudaFree(sobel_y_img_vec));
 		HANDLE_ERROR(cudaFree(gpu_result_vec));
+		free(cpu_result_vec);
+		free(sobel_y);
+		free(sobel_x);
+
+		//delete[] cpu_result_vec;
+		//delete[] sobel_y;
+		//delete[] sobel_x;
 		cudaDeviceReset();
 	}
 
@@ -111,7 +136,10 @@ namespace harris
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x;
 		int index = block_id * blockDim.x + thread_id;
-		printf("thread_id = %d, block_id = %d, index = %d\n", thread_id, block_id, index);
+		if (block_id == 0 ||thread_id == 0)
+		{
+			printf("thread_id = %d, block_id = %d, index = %d\n", thread_id, block_id, index);
+		}
 		if (index >= img_row * img_col)
 		{
 			return;
