@@ -107,10 +107,6 @@ namespace harris
 		free(cpu_result_vec);
 		free(sobel_y);
 		free(sobel_x);
-
-		//delete[] cpu_result_vec;
-		//delete[] sobel_y;
-		//delete[] sobel_x;
 		cudaDeviceReset();
 	}
 
@@ -149,24 +145,17 @@ namespace harris
 					gradient_x = sobel_x_vec[cur_row * img_col + cur_col];
 					gradient_y = sobel_y_vec[cur_row * img_col + cur_col];
 				}
-				//gradient_x_mean += gradient_x / num;
-				//gradient_y_mean += gradient_y / num;
-				//gradient_xx_mean += gradient_x * gradient_x / num ;
-				//gradient_yy_mean += gradient_y * gradient_y / num ;
-				//gradient_xy_mean += gradient_x * gradient_y / num ;
 				gradient_x_mean += gradient_x ;
 				gradient_y_mean += gradient_y ;
 				gradient_xx_mean += gradient_x * gradient_x ;
 				gradient_yy_mean += gradient_y * gradient_y ;
 				gradient_xy_mean += gradient_x * gradient_y ;
-
-
 			}
 		}
-		float cov_mat_00 = gradient_xx_mean / num - gradient_x_mean * gradient_x_mean / num / num;
-		float cov_mat_01 = gradient_xy_mean / num - gradient_x_mean * gradient_y_mean / num / num;
-		float cov_mat_11 = gradient_yy_mean / num - gradient_y_mean * gradient_y_mean / num / num;
-		// determinent - k * trace() ^ 2
+		float cov_mat_00 = gradient_xx_mean;
+		float cov_mat_01 = gradient_xy_mean;
+		float cov_mat_11 = gradient_yy_mean;
+		// det(H) - k * trace(H) ^ 2, H represpent harris matrix
 		float discri_cond = cov_mat_00 * cov_mat_11 - cov_mat_01 * cov_mat_01 - 
 			prop * (cov_mat_00 + cov_mat_11) * (cov_mat_00 + cov_mat_11);
 		gpu_result_vec[index] = discri_cond;
