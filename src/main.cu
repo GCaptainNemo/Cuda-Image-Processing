@@ -71,6 +71,11 @@ int main()
 	normalize(src, src);
 	mat_vec.push_back(src);
 	mat_vec.push_back(dst);
+	cv::Mat down_samp_img;
+	conv::down_sampling(dst, down_samp_img);
+	cv::namedWindow("pyramid", cv::WINDOW_NORMAL);
+	cv::imshow("pyramid", down_samp_img);
+	
 	
 	cv::hconcat(mat_vec, result);
 	cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);

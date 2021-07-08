@@ -41,6 +41,17 @@ namespace conv {
 		}
 	}
 
+	__global__ void down_sample_kernel(float * gpu_src, float * gpu_dst, const int src_img_rows, const int src_img_cols, 
+		const int dst_img_rows, const int dst_img_cols)
+	{
+		int index = blockIdx.x * blockDim.x + threadIdx.x;
+		if (index >= dst_img_rows * dst_img_cols)
+			{return;}
+		int row = index / dst_img_cols;
+		int col = index % dst_img_cols;
+		gpu_dst[index] = gpu_src[row * 2 * src_img_cols + col * 2];
+	}
+
 
 	void cuda_conv(cv::Mat & src, cv::Mat & dst, float * kernel, int kernel_dim)
 	{
@@ -132,4 +143,39 @@ namespace conv {
 			gaussian_kernel[index] /= sum;
 		}
 	}
+
+	void down_sampling(cv::Mat & src, cv::Mat & dst)
+	{
+		HANDLE_ERROR(cudaSetDevice(0));
+		float * gpu_src_img;
+		float * gpu_res_img;
+		int src_rows = src.rows;
+		int src_cols = src.cols;
+		int dst_rows = (src_rows + 1) / 2;
+		int dst_cols = (src_cols + 1) / 2;
+		size_t src_size = src_rows * src_cols * sizeof(float);
+		size_t dst_size = dst_rows * dst_cols * sizeof(float);
+
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_img, src_size));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_res_img, dst_size));
+		HANDLE_ERROR(cudaMemcpy(gpu_src_img, src.data, src_size, cudaMemcpyHostToDevice));
+
+		int thread_num = getThreadNum();
+		int block_num = (dst_cols * dst_rows - 0.5) / thread_num + 1;
+		dim3 grid_size(block_num, 1, 1);
+		dim3 block_size(thread_num, 1, 1);
+		conv::down_sample_kernel<< < grid_size, block_size >> > (gpu_src_img, gpu_res_img, src_rows, src_cols, dst_rows, dst_cols);
+		float * cpu_result = (float *)malloc(dst_size);
+		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_res_img, dst_size, cudaMemcpyDeviceToHost));
+		
+		dst = cv::Mat(dst_rows, dst_cols, CV_32FC1, cpu_result).clone();
+		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
+
+		// free the memory
+		cudaFree(gpu_res_img);
+		cudaFree(gpu_src_img);
+		free(cpu_result);
+		cudaDeviceReset();
+	};
+
 }
