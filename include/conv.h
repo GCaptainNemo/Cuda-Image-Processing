@@ -19,7 +19,9 @@ namespace conv
 	// calculate gaussian kernel, mod(kernel_size, 2) = 1 
 	void get_gaussian_blur_kernel(float & sigma, const int & kernel_size, float * gaussian_kernel);
 
-	// pyramid down sampling(gaussian pyramid downsampling delete even row, col)
+	// down sampling(delete even row, col)
 	void down_sampling(cv::Mat & src, cv::Mat & dst);
 
+	// construct pyramid downsample
+	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &size, float & sigma);
 }

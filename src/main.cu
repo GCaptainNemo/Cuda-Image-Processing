@@ -9,12 +9,13 @@
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
-void normalize(cv::Mat &src, cv::Mat & dst) 
+void rgb2gray_01(cv::Mat &src, cv::Mat & dst, bool is_normalize) 
 {
 	// rgb uint8 img ---> gray float[0-1] img
 	cv::cvtColor(src, dst, cv::COLOR_BGR2GRAY);
 	dst.convertTo(dst, CV_32FC1);
-	dst /= 255.0;
+	if (is_normalize)
+		dst /= 255.0;
 };
 
 
@@ -34,52 +35,22 @@ int main()
 	//cv::namedWindow("bw", cv::WINDOW_NORMAL);
 	//cv::imshow("bw", harris_bw_img);
 
-	//cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX, CV_32FC1);
+	//cv::rgb2gray_01(dst, dst, 1.0, 0.0, cv::NORM_MINMAX, CV_32FC1);
 	//cv::namedWindow("harris-image", cv::WINDOW_NORMAL);
 	//cv::imshow("harris-image", dst);
 	//cv::waitKey(0);
 
 	
-	int kernel_size = 5;
-	float * kernel = new float[kernel_size * kernel_size];
-	float sigma = 30;
-	conv::get_gaussian_blur_kernel(sigma, kernel_size, kernel);
-	for (int i = 0; i < kernel_size ; ++i)
-	{
-		for (int j = 0; j < kernel_size; ++j) 
-		{
-			printf("%f ", kernel[i * kernel_size + j]) ;
-		}
-		printf("\n");
-	}
-	/*for (int i = 0; i < kernel_size * kernel_size; ++i)
-	{
-		kernel[i] = i % kernel_size - 1;
-	}*/
 	printf("kernel\n");
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
+	rgb2gray_01(src, src, true);
 	cv::Mat dst;
-	conv::cuda_conv(src, dst, kernel, kernel_size);
-	
-	printf("src.type = %d\n", src.type());
-	printf("dst.type = %d\n", dst.type());
-	printf("src.shape = %d\n", dst.size[0]);
-
-	cv::Mat result;
-	std::vector<cv::Mat> mat_vec;
-	normalize(src, src);
-	mat_vec.push_back(src);
-	mat_vec.push_back(dst);
-	cv::Mat down_samp_img;
-	conv::down_sampling(dst, down_samp_img);
-	cv::namedWindow("pyramid", cv::WINDOW_NORMAL);
-	cv::imshow("pyramid", down_samp_img);
-	
-	
-	cv::hconcat(mat_vec, result);
+	int size = 15;
+	float sigma = 100;
+	conv::cuda_pyramid_down(src, dst, size, sigma);
 	cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);
-	cv::imshow("sobel-image", result);
+	cv::imshow("sobel-image", dst);
 	cv::waitKey();
 	/*
 	conv::opencv_conv(address);*/
