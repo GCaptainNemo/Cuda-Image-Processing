@@ -2,6 +2,7 @@
 #include "../include/conv.h"
 #include "opencv2/opencv.hpp"
 #include "../include/utils.h"
+#include <math.h>
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
@@ -106,5 +107,29 @@ namespace conv {
 		cv::namedWindow("dst_img", cv::WINDOW_NORMAL);
 		cv::imshow("dst_img", dst_img);
 		cv::waitKey(0);
+	}
+
+	void get_gaussian_blur_kernel(float & sigma, const int & kernel_size, float * gaussian_kernel) 
+	{
+		float sum = 0;
+		int center = (kernel_size - 1) / 2;
+		if (sigma <= 0) 
+		{
+			sigma = 0.3 * (center - 1) + 0.8;
+		}
+		for (int row = 0; row < kernel_size; ++row) 
+		{
+			for (int col = 0; col < kernel_size; ++col) 
+			{
+				int index = row * kernel_size + col;
+				float linshi = exp(-(pow(row - center, 2) + pow(col - center, 2)) / 2 / pow(sigma, 2));
+				gaussian_kernel[index] = linshi;
+				sum += linshi;
+			}
+		}
+		for (int index = 0; index < kernel_size *kernel_size; ++index) 
+		{
+			gaussian_kernel[index] /= sum;
+		}
 	}
 }
