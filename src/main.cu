@@ -2,6 +2,7 @@
 #include "../include/conv.h"
 #include "../include/utils.h"
 #include "../include/harris.h"
+#include "../include/gau_pyr.h"
 #include "opencv2/opencv.hpp"
 #include <vector>
 #include<opencv2/core/core.hpp>
@@ -15,7 +16,9 @@ void rgb2gray_01(cv::Mat &src, cv::Mat & dst, bool is_normalize)
 	cv::cvtColor(src, dst, cv::COLOR_BGR2GRAY);
 	dst.convertTo(dst, CV_32FC1);
 	if (is_normalize)
+	{
 		dst /= 255.0;
+	}
 };
 
 
@@ -48,7 +51,7 @@ int main()
 	cv::Mat dst;
 	int size = 15;
 	float sigma = 100;
-	conv::cuda_pyramid_down(src, dst, size, sigma);
+	gau_pyr::cuda_pyramid_down(src, dst, size, sigma);
 	cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);
 	cv::imshow("sobel-image", dst);
 	cv::waitKey();
