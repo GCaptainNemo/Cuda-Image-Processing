@@ -48,7 +48,9 @@ int main()
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
 	rgb2gray_01(src, src, true);
-	cv::Mat dst;
+	float *** dst = NULL;
+	gau_pyr::build_gauss_pry(src, dst, 3, 3, 1.6);
+	/*cv::Mat dst;
 	
 	int size = -1;
 	float sigma = 5;
@@ -58,7 +60,8 @@ int main()
 	cv::waitKey();
 	dst *= 255;
 	dst.convertTo(dst, CV_8UC1);
-	cv::imwrite("dst.png", dst);
+	cv::imwrite("dst.png", dst);*/
+
 	/*
 	conv::opencv_conv(address);*/
 	return 0;

@@ -77,6 +77,10 @@ namespace gau_pyr
 			// according to opencv createGaussianFilter API： atleast size = 1
 			kernel_size = ((int)round(sigma * 8 + 1)) | 1; 
 		}
+		if (kernel_size % 2 == 0)
+		{
+			kernel_size -= 1;
+		}
 		int center = (kernel_size - 1) / 2;
 		printf("kernel_size = %d", kernel_size);
 		printf("sigma = %f", sigma);
@@ -192,15 +196,24 @@ namespace gau_pyr
 	};
 
 	// return gaussian pyramid (octave x (intervals + 3) imgs
-	void build_gauss_pry(cv::Mat * src, cv::Mat *** dst, int octave, int intervals, float sigma) 
+	void build_gauss_pry(cv::Mat src, float *** dst, int octave, int intervals, float sigma) 
 	{
-		// every octave has intervals + 3 image(default 6)
-		double * sigma_diff_array = (double *)calloc(intervals + 3, sizeof(float));
-		dst = (cv::Mat ***)calloc(octave, sizeof(**dst)); // octave image
-		for (int i = 0; i < octave; ++i) 
+		if (src.type() == CV_8UC3) 
 		{
-			dst[i] = (cv::Mat **)calloc(intervals + 3, sizeof(*dst));
+			cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
+			src.convertTo(src, CV_32FC1);
 		}
+
+		// every octave has intervals + 3 image(default 6)
+		dst = (float ***)calloc (octave,  sizeof(float**));
+		for (int i = 0; i < octave; ++i)
+		{
+			dst[i] = (float **)calloc((intervals + 3), sizeof(float*));
+		}
+
+		double * sigma_diff_array = (double *)calloc(intervals + 3, sizeof(float));
+		
+
 		// init sigma (1.6 default)
 		sigma_diff_array[0] = sigma;
 		// 相邻层Sigma的比值
@@ -211,37 +224,40 @@ namespace gau_pyr
 			float sig_total = sig_prev * k; 
 			sigma_diff_array[i] = sqrt(sig_total * sig_total - sig_prev * sig_prev); 
 		}
+
+		//int origin_row = src->rows * 2;
+		//int origin_col = src->cols * 2;
+
 		for (int o = 0; o < octave; ++o) 
 		{
 			for (int i = 0; i < intervals + 3; ++i) 
 			{
+				//dst[o][i] = malloc()
 				// bottom
 				if (o == 0 && i == 0) 
 				{
-					dst[o][i] = src;
+					dst[o][i] = (float *)&src.data;
 				}
 				else if (i == 0) 
 				{
 					// first interval of each octave
 					cv::Mat * down_sample_img;
-					gau_pyr::down_sampling(*src, *down_sample_img);
-					dst[o][i] = down_sample_img;
+					gau_pyr::down_sampling(src, *down_sample_img);
+					dst[o][i] = (float *) &down_sample_img->data;
 				}
 				else 
 				{
 					// 在上一张图像上继续做gaussian blur(由于gaussian卷积的封闭性)
-					float blur_sigma = sigma_diff_array[i];
-					cv::Mat * blur_img;
-					float * kernel;
-					int size = -1;
-					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
-
+					//float blur_sigma = sigma_diff_array[i];
+					////cv::Mat * blur_img;
+					//float * kernel;
+					//int size = -1;
+					//gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
+					//conv::cuda_conv(*dst[o][i-1], *dst[o][i], kernel, size);
 				}
 			}
 		}
-
-
-
+		free(sigma_diff_array);
 	};
 
 }

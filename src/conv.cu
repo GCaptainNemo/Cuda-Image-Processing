@@ -46,11 +46,17 @@ namespace conv {
 	{
 		// read linshi and convert to gray image
 		cudaSetDevice(0);
+		
 		cv::Mat linshi;
-		cv::cvtColor(src, linshi, cv::COLOR_BGR2GRAY);
-		printf("origin gray img\n");
-		// uchar to float
-		linshi.convertTo(linshi, CV_32FC1);
+		if (src.type() == CV_8UC3) {
+			cv::cvtColor(src, linshi, cv::COLOR_BGR2GRAY);
+			printf("origin gray img\n");
+			// uchar to float
+			linshi.convertTo(linshi, CV_32FC1);
+		}
+		else {
+			linshi = src;
+		}
 		int img_cols = linshi.cols;
 		int img_rows = linshi.rows;
 
@@ -108,8 +114,4 @@ namespace conv {
 		cv::imshow("dst_img", dst_img);
 		cv::waitKey(0);
 	}
-
-	
-
-
 }

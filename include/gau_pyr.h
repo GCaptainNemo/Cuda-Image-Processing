@@ -21,7 +21,10 @@ namespace gau_pyr
 	// down sampling(delete even row, col)
 	void down_sampling(cv::Mat & src, cv::Mat & dst);
 
-	// construct pyramid downsample
+	// pyramid downsample
 	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &size, float & sigma);
 
+	// constuct gaussian pyramid
+	void build_gauss_pry(cv::Mat src, float *** dst, int octave, int intervals, float sigma);
+	
 }
