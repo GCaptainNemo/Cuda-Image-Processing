@@ -49,7 +49,8 @@ int main()
 	cv::Mat src = cv::imread(address);
 	rgb2gray_01(src, src, true);
 	cv::Mat dst;
-	int size = 41;
+	
+	int size = -1;
 	float sigma = 5;
 	gau_pyr::cuda_pyramid_down(src, dst, size, sigma);
 	cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);

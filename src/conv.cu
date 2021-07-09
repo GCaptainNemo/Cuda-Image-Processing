@@ -10,6 +10,7 @@ namespace conv {
 	__global__ void conv_kernel(float *gpu_img, float * gpu_kernel, float * gpu_result,
 		const int img_cols, const int img_rows, const int kernel_dim)
 	{
+		// the kernel anchor is at the center.
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x;
 

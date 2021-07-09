@@ -67,9 +67,9 @@ namespace gau_pyr
 	void get_gaussian_blur_kernel(float &sigma, int &kernel_size, float ** gaussian_kernel)
 	{
 		float sum = 0;
-		int center = (kernel_size - 1) / 2;
 		if (sigma <= 0 && kernel_size > 0)
 		{
+			int center = (kernel_size - 1) / 2;
 			sigma = 0.3 * (center - 1) + 0.8;
 		}
 		else if (sigma > 0 && kernel_size <= 0) 
@@ -77,6 +77,7 @@ namespace gau_pyr
 			// according to opencv createGaussianFilter API£º atleast size = 1
 			kernel_size = ((int)round(sigma * 8 + 1)) | 1; 
 		}
+		int center = (kernel_size - 1) / 2;
 		printf("kernel_size = %d", kernel_size);
 		printf("sigma = %f", sigma);
 
@@ -138,18 +139,18 @@ namespace gau_pyr
 		// if kernel_dim < 0 or sigma < 0 will modify to > 0
 		gau_pyr::get_gaussian_blur_kernel(sigma, kernel_dim, &kernel);
 		printf("out kernel_dim = %d\n", kernel_dim);
-		size_t kernel_size = kernel_dim * kernel_dim * sizeof(float);
+		size_t kernel_size_t = kernel_dim * kernel_dim * sizeof(float);
 		// ///////////////////////////////////////////////////////
 		//
 		// /////////////////////////////////////////////////////////
-		/*for (int i = 0; i < kernel_dim; ++i)
+		for (int i = 0; i < kernel_dim; ++i)
 		{
 			for (int j = 0; j < kernel_dim; ++j)
 			{
 				printf("%f ", kernel[i * kernel_dim + j]);
 			}
 			printf("\n");
-		}*/
+		}
 		float * gpu_src_img = NULL;
 		float * gpu_dst_img = NULL;
 		float * gpu_kernel = NULL;
@@ -158,14 +159,14 @@ namespace gau_pyr
 		int dst_rows = (src_rows + 1) / 2;
 		int dst_cols = (src_cols + 1) / 2;
 		size_t src_size = src_rows * src_cols * sizeof(float);
-		size_t dst_size = dst_rows * dst_cols * sizeof(float);
+		size_t dst_size_t = dst_rows * dst_cols * sizeof(float);
 
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_img, src_size));
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_dst_img, dst_size));
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_dim * kernel_dim * sizeof(float)));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_dst_img, dst_size_t));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_size_t));
 
 		HANDLE_ERROR(cudaMemcpy(gpu_src_img, src.data, src_size, cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size_t, cudaMemcpyHostToDevice));
 
 		int thread_num = getThreadNum();
 		int block_num = (src_cols * src_rows - 0.5) / thread_num + 1;
@@ -174,8 +175,8 @@ namespace gau_pyr
 		gau_pyr::gaussian_pyramid_down_kernel << < grid_size, block_size >> >
 			(gpu_src_img, gpu_dst_img, gpu_kernel, src_rows, src_cols, dst_rows, dst_cols, kernel_dim);
 
-		float * cpu_result = (float *)malloc(dst_size);
-		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_dst_img, dst_size, cudaMemcpyDeviceToHost));
+		float * cpu_result = (float *)malloc(dst_size_t);
+		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_dst_img, dst_size_t, cudaMemcpyDeviceToHost));
 
 		// return and normalize
 		dst = cv::Mat(dst_rows, dst_cols, CV_32FC1, cpu_result).clone();
