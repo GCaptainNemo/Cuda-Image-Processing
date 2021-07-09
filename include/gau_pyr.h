@@ -2,6 +2,7 @@
 #include "cuda_runtime.h"
 #include <opencv2/opencv.hpp>
 #include "device_launch_parameters.h"
+#include <vector>
 
 
 namespace gau_pyr 
@@ -25,6 +26,6 @@ namespace gau_pyr
 	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &size, float & sigma);
 
 	// constuct gaussian pyramid
-	void build_gauss_pry(cv::Mat src, float *** dst, int octave, int intervals, float sigma);
-	
+	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma);
+		
 }

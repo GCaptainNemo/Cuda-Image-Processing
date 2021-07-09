@@ -48,14 +48,14 @@ namespace conv {
 		cudaSetDevice(0);
 		
 		cv::Mat linshi;
-		if (src.type() == CV_8UC3) {
+ 		if (src.type() == CV_8UC3) {
 			cv::cvtColor(src, linshi, cv::COLOR_BGR2GRAY);
 			printf("origin gray img\n");
 			// uchar to float
 			linshi.convertTo(linshi, CV_32FC1);
 		}
 		else {
-			linshi = src;
+			linshi = src.clone();
 		}
 		int img_cols = linshi.cols;
 		int img_rows = linshi.rows;

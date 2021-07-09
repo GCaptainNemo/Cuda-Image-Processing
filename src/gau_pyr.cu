@@ -111,20 +111,20 @@ namespace gau_pyr
 		int src_cols = src.cols;
 		int dst_rows = (src_rows + 1) / 2;
 		int dst_cols = (src_cols + 1) / 2;
-		size_t src_size = src_rows * src_cols * sizeof(float);
-		size_t dst_size = dst_rows * dst_cols * sizeof(float);
+		size_t src_size_t = src_rows * src_cols * sizeof(float);
+		size_t dst_size_t = dst_rows * dst_cols * sizeof(float);
 
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_img, src_size));
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_res_img, dst_size));
-		HANDLE_ERROR(cudaMemcpy(gpu_src_img, src.data, src_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_img, src_size_t));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_res_img, dst_size_t));
+		HANDLE_ERROR(cudaMemcpy(gpu_src_img, src.data, src_size_t, cudaMemcpyHostToDevice));
 
 		int thread_num = getThreadNum();
 		int block_num = (dst_cols * dst_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
 		gau_pyr::down_sample_kernel << < grid_size, block_size >> > (gpu_src_img, gpu_res_img, src_rows, src_cols, dst_rows, dst_cols);
-		float * cpu_result = (float *)malloc(dst_size);
-		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_res_img, dst_size, cudaMemcpyDeviceToHost));
+		float * cpu_result = (float *)malloc(dst_size_t);
+		HANDLE_ERROR(cudaMemcpy(cpu_result, gpu_res_img, dst_size_t, cudaMemcpyDeviceToHost));
 
 		dst = cv::Mat(dst_rows, dst_cols, CV_32FC1, cpu_result).clone();
 		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
@@ -196,22 +196,14 @@ namespace gau_pyr
 	};
 
 	// return gaussian pyramid (octave x (intervals + 3) imgs
-	void build_gauss_pry(cv::Mat src, float *** dst, int octave, int intervals, float sigma) 
+	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma)
 	{
 		if (src.type() == CV_8UC3) 
 		{
 			cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
 			src.convertTo(src, CV_32FC1);
 		}
-
-		// every octave has intervals + 3 image(default 6)
-		dst = (float ***)calloc (octave,  sizeof(float**));
-		for (int i = 0; i < octave; ++i)
-		{
-			dst[i] = (float **)calloc((intervals + 3), sizeof(float*));
-		}
-
-		double * sigma_diff_array = (double *)calloc(intervals + 3, sizeof(float));
+		double * sigma_diff_array = new double[3 + intervals];
 		
 
 		// init sigma (1.6 default)
@@ -225,39 +217,43 @@ namespace gau_pyr
 			sigma_diff_array[i] = sqrt(sig_total * sig_total - sig_prev * sig_prev); 
 		}
 
-		//int origin_row = src->rows * 2;
-		//int origin_col = src->cols * 2;
+		int origin_row = src.rows * 2;
+		int origin_col = src.cols * 2;
 
 		for (int o = 0; o < octave; ++o) 
 		{
+			origin_row = (origin_row + 1) / 2;
+			origin_col = (origin_col + 1) / 2;
+
 			for (int i = 0; i < intervals + 3; ++i) 
 			{
+				printf("octave = %d, intervals = %d\n", o, i);
 				//dst[o][i] = malloc()
 				// bottom
 				if (o == 0 && i == 0) 
 				{
-					dst[o][i] = (float *)&src.data;
+					dst[o][i] = new cv::Mat(src);
 				}
 				else if (i == 0) 
 				{
 					// first interval of each octave
-					cv::Mat * down_sample_img;
-					gau_pyr::down_sampling(src, *down_sample_img);
-					dst[o][i] = (float *) &down_sample_img->data;
+					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+					gau_pyr::down_sampling(*dst[o-1][intervals], *dst[o][i]);
 				}
 				else 
 				{
 					// 在上一张图像上继续做gaussian blur(由于gaussian卷积的封闭性)
-					//float blur_sigma = sigma_diff_array[i];
-					////cv::Mat * blur_img;
-					//float * kernel;
-					//int size = -1;
-					//gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
-					//conv::cuda_conv(*dst[o][i-1], *dst[o][i], kernel, size);
+					float blur_sigma = sigma_diff_array[i];
+					float * kernel;
+					int size = -1;
+					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+
+					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
+					conv::cuda_conv(*dst[o][i-1], *dst[o][i], kernel, size);
 				}
 			}
 		}
-		free(sigma_diff_array);
+		delete [] sigma_diff_array;
 	};
 
 }
