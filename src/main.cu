@@ -85,7 +85,11 @@ void test_build_gau_py()
 	//float *** dst = NULL;
 	int octave = 3;
 	int interval = 3;
-	std::vector<std::vector<cv::Mat *>> dst(octave, std::vector<cv::Mat *>(interval + 3));
+	//std::vector<std::vector<cv::Mat *>> dst(octave, std::vector<cv::Mat *>(interval + 3));
+	cv::Mat *** dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat **));
+	for (int o = 0; o < octave; ++o) {
+		dst[o] = (cv::Mat **)malloc((interval + 3) * sizeof(cv::Mat *));
+	}
 	gau_pyr::build_gauss_pry(src, dst, octave, interval, 1.6);
 	for (int o = 0; o < octave; ++o) 
 	{

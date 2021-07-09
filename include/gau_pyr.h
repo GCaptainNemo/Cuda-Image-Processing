@@ -27,5 +27,8 @@ namespace gau_pyr
 
 	// constuct gaussian pyramid
 	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma);
-		
+	
+	// use pointer
+	void build_gauss_pry(cv::Mat src, cv::Mat *** dst, int octave, int intervals, float sigma);
+
 }

@@ -203,7 +203,7 @@ namespace gau_pyr
 			cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
 			src.convertTo(src, CV_32FC1);
 		}
-		double * sigma_diff_array = new double[3 + intervals];
+		double * sigma_diff_array = (double * )malloc((3 + intervals) * sizeof(double));
 		
 
 		// init sigma (1.6 default)
@@ -253,7 +253,69 @@ namespace gau_pyr
 				}
 			}
 		}
-		delete [] sigma_diff_array;
+		free(sigma_diff_array);
+	}; // build_gauss_pry
+
+	void build_gauss_pry(cv::Mat src, cv::Mat *** dst, int octave, int intervals, float sigma) 
+	{
+		if (src.type() == CV_8UC3)
+		{
+			cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
+			src.convertTo(src, CV_32FC1);
+		}
+		double * sigma_diff_array = (double *)malloc((3 + intervals) * sizeof(double));
+		
+		// init sigma (1.6 default)
+		sigma_diff_array[0] = sigma;
+		// 相邻层Sigma的比值
+		float k = pow(2.0, 1.0 / intervals);
+		for (int i = 1; i < intervals + 3; ++i)
+		{
+			float sig_prev = pow(k, i - 1) * sigma;
+			float sig_total = sig_prev * k;
+			sigma_diff_array[i] = sqrt(sig_total * sig_total - sig_prev * sig_prev);
+		}
+
+		int origin_row = src.rows * 2;
+		int origin_col = src.cols * 2;
+
+		for (int o = 0; o < octave; ++o)
+		{
+			origin_row = (origin_row + 1) / 2;
+			origin_col = (origin_col + 1) / 2;
+
+			for (int i = 0; i < intervals + 3; ++i)
+			{
+				printf("octave = %d, intervals = %d\n", o, i);
+				//dst[o][i] = malloc()
+				// bottom
+				if (o == 0 && i == 0)
+				{
+					dst[o][i] = new cv::Mat(src);
+				}
+				else if (i == 0)
+				{
+					// first interval of each octave
+					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+					gau_pyr::down_sampling(*dst[o - 1][intervals], *dst[o][i]);
+				}
+				else
+				{
+					// 在上一张图像上继续做gaussian blur(由于gaussian卷积的封闭性)
+					float blur_sigma = sigma_diff_array[i];
+					float * kernel;
+					int size = -1;
+					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+
+					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
+					conv::cuda_conv(*dst[o][i - 1], *dst[o][i], kernel, size);
+				}
+			}
+		}
+		free(sigma_diff_array);
+
+	
 	};
+
 
 }
