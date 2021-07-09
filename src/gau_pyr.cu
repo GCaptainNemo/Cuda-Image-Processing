@@ -63,27 +63,33 @@ namespace gau_pyr
 	}
 
 
-	void get_gaussian_blur_kernel(float & sigma, const int & kernel_size, float * gaussian_kernel)
+	void get_gaussian_blur_kernel(float sigma, int kernel_size, float ** gaussian_kernel)
 	{
 		float sum = 0;
 		int center = (kernel_size - 1) / 2;
-		if (sigma <= 0)
+		if (sigma <= 0 && kernel_size > 0)
 		{
 			sigma = 0.3 * (center - 1) + 0.8;
 		}
+		else if (sigma > 0 && kernel_size <= 0) 
+		{
+			// according to opencv createGaussianFilter API： atleast size = 1
+			kernel_size = ((int)round(sigma * 8 + 1)) | 1; 
+		}
+		*gaussian_kernel = new float[kernel_size * kernel_size];
 		for (int row = 0; row < kernel_size; ++row)
 		{
 			for (int col = 0; col < kernel_size; ++col)
 			{
 				int index = row * kernel_size + col;
 				float linshi = exp(-(pow(row - center, 2) + pow(col - center, 2)) / 2 / pow(sigma, 2));
-				gaussian_kernel[index] = linshi;
+				(*gaussian_kernel)[index] = linshi;
 				sum += linshi;
 			}
 		}
 		for (int index = 0; index < kernel_size *kernel_size; ++index)
 		{
-			gaussian_kernel[index] /= sum;
+			(*gaussian_kernel)[index] /= sum;
 		}
 	}
 
@@ -125,8 +131,8 @@ namespace gau_pyr
 	{
 		HANDLE_ERROR(cudaSetDevice(0));
 		size_t kernel_size = kernel_dim * kernel_dim * sizeof(float);
-		float * kernel = (float *)malloc(kernel_size);
-		gau_pyr::get_gaussian_blur_kernel(sigma, kernel_dim, kernel);
+		float * kernel;
+		gau_pyr::get_gaussian_blur_kernel(sigma, kernel_dim, &kernel);
 		// ///////////////////////////////////////////////////////
 		//
 		// /////////////////////////////////////////////////////////
@@ -178,10 +184,55 @@ namespace gau_pyr
 		cudaDeviceReset();
 	};
 
+	// return gaussian pyramid (octave x (intervals + 3) imgs
 	void build_gauss_pry(cv::Mat * src, cv::Mat *** dst, int octave, int intervals, float sigma) 
 	{
-		
-	
+		// every octave has intervals + 3 image(default 6)
+		double * sigma_diff_array = (double *)calloc(intervals + 3, sizeof(float));
+		dst = (cv::Mat ***)calloc(octave, sizeof(**dst)); // octave image
+		for (int i = 0; i < octave; ++i) 
+		{
+			dst[i] = (cv::Mat **)calloc(intervals + 3, sizeof(*dst));
+		}
+		// init sigma (1.6 default)
+		sigma_diff_array[0] = sigma;
+		// 相邻层Sigma的比值
+		float k = pow(2.0, 1.0 / intervals);
+		for (int i = 1; i < intervals + 3; ++i)
+		{
+			float sig_prev = pow(k, i - 1) * sigma; 
+			float sig_total = sig_prev * k; 
+			sigma_diff_array[i] = sqrt(sig_total * sig_total - sig_prev * sig_prev); 
+		}
+		for (int o = 0; o < octave; ++o) 
+		{
+			for (int i = 0; i < intervals + 3; ++i) 
+			{
+				// bottom
+				if (o == 0 && i == 0) 
+				{
+					dst[o][i] = src;
+				}
+				else if (i == 0) 
+				{
+					// first interval of each octave
+					cv::Mat * down_sample_img;
+					gau_pyr::down_sampling(*src, *down_sample_img);
+					dst[o][i] = down_sample_img;
+				}
+				else 
+				{
+					// 在上一张图像上继续做gaussian blur(由于gaussian卷积的封闭性)
+					float blur_sigma = sigma_diff_array[i];
+					cv::Mat * blur_img;
+					float * kernel;
+					gau_pyr::get_gaussian_blur_kernel(blur_sigma, -1, &kernel);
+				}
+			}
+		}
+
+
+
 	};
 
 }
