@@ -54,9 +54,9 @@ namespace conv {
 		int img_rows = linshi.rows;
 
 
-		float * gpu_img;
-		float * gpu_result;
-		float * gpu_kernel;
+		float * gpu_img = NULL;
+		float * gpu_result = NULL;
+		float * gpu_kernel = NULL;
 
 
 		size_t img_size = img_cols * img_rows * sizeof(float);

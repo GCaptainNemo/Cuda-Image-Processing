@@ -72,9 +72,9 @@ namespace harris
 
 
 		size_t img_size_float = img_cols * img_rows * sizeof(float);
-		float * sobel_x_img_vec;
-		float * sobel_y_img_vec;
-		float * gpu_result_vec;
+		float * sobel_x_img_vec = NULL;
+		float * sobel_y_img_vec = NULL;
+		float * gpu_result_vec = NULL;
 
 		// memory allocate
 		HANDLE_ERROR(cudaMalloc((void **)& sobel_x_img_vec, img_size_float));

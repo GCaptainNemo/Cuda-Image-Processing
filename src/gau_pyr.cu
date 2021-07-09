@@ -90,8 +90,8 @@ namespace gau_pyr
 	void down_sampling(cv::Mat & src, cv::Mat & dst)
 	{
 		HANDLE_ERROR(cudaSetDevice(0));
-		float * gpu_src_img;
-		float * gpu_res_img;
+		float * gpu_src_img = NULL;
+		float * gpu_res_img = NULL;
 		int src_rows = src.rows;
 		int src_cols = src.cols;
 		int dst_rows = (src_rows + 1) / 2;
@@ -138,9 +138,9 @@ namespace gau_pyr
 			}
 			printf("\n");
 		}
-		float * gpu_src_img;
-		float * gpu_dst_img;
-		float * gpu_kernel;
+		float * gpu_src_img = NULL;
+		float * gpu_dst_img = NULL;
+		float * gpu_kernel = NULL;
 		int src_rows = src.rows;
 		int src_cols = src.cols;
 		int dst_rows = (src_rows + 1) / 2;
@@ -167,7 +167,7 @@ namespace gau_pyr
 
 		// return and normalize
 		dst = cv::Mat(dst_rows, dst_cols, CV_32FC1, cpu_result).clone();
-		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX);
+		cv::normalize(dst, dst, 1.0, 0.0, cv::NORM_MINMAX); // idempotent operator
 
 		// free the memory
 		cudaFree(gpu_dst_img);
@@ -177,4 +177,11 @@ namespace gau_pyr
 		free(kernel);
 		cudaDeviceReset();
 	};
+
+	void build_gauss_pry(cv::Mat * src, cv::Mat *** dst, int octave, int intervals, float sigma) 
+	{
+		
+	
+	};
+
 }
