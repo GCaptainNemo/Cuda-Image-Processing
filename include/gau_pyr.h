@@ -16,7 +16,7 @@ namespace gau_pyr
 
 
 	// calculate gaussian kernel, mod(kernel_size, 2) = 1 
-	void get_gaussian_blur_kernel(float sigma, int kernel_size, float ** gaussian_kernel);
+	void get_gaussian_blur_kernel(float &sigma, int &kernel_size, float ** gaussian_kernel);
 
 	// down sampling(delete even row, col)
 	void down_sampling(cv::Mat & src, cv::Mat & dst);

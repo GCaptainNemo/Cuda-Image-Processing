@@ -2,6 +2,7 @@
 #include "../include/gau_pyr.h"
 #include "opencv2/opencv.hpp"
 #include "../include/utils.h"
+#include "../include/conv.h"
 #include <math.h>
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
@@ -63,7 +64,7 @@ namespace gau_pyr
 	}
 
 
-	void get_gaussian_blur_kernel(float sigma, int kernel_size, float ** gaussian_kernel)
+	void get_gaussian_blur_kernel(float &sigma, int &kernel_size, float ** gaussian_kernel)
 	{
 		float sum = 0;
 		int center = (kernel_size - 1) / 2;
@@ -76,7 +77,10 @@ namespace gau_pyr
 			// according to opencv createGaussianFilter API£º atleast size = 1
 			kernel_size = ((int)round(sigma * 8 + 1)) | 1; 
 		}
-		*gaussian_kernel = new float[kernel_size * kernel_size];
+		printf("kernel_size = %d", kernel_size);
+		printf("sigma = %f", sigma);
+
+		*gaussian_kernel = (float *)malloc(kernel_size * kernel_size * sizeof(float));
 		for (int row = 0; row < kernel_size; ++row)
 		{
 			for (int col = 0; col < kernel_size; ++col)
@@ -87,7 +91,7 @@ namespace gau_pyr
 				sum += linshi;
 			}
 		}
-		for (int index = 0; index < kernel_size *kernel_size; ++index)
+		for (int index = 0; index < kernel_size * kernel_size; ++index)
 		{
 			(*gaussian_kernel)[index] /= sum;
 		}
@@ -130,20 +134,22 @@ namespace gau_pyr
 	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &kernel_dim, float & sigma)
 	{
 		HANDLE_ERROR(cudaSetDevice(0));
-		size_t kernel_size = kernel_dim * kernel_dim * sizeof(float);
 		float * kernel;
+		// if kernel_dim < 0 or sigma < 0 will modify to > 0
 		gau_pyr::get_gaussian_blur_kernel(sigma, kernel_dim, &kernel);
+		printf("out kernel_dim = %d\n", kernel_dim);
+		size_t kernel_size = kernel_dim * kernel_dim * sizeof(float);
 		// ///////////////////////////////////////////////////////
 		//
 		// /////////////////////////////////////////////////////////
-		for (int i = 0; i < kernel_dim; ++i)
+		/*for (int i = 0; i < kernel_dim; ++i)
 		{
 			for (int j = 0; j < kernel_dim; ++j)
 			{
 				printf("%f ", kernel[i * kernel_dim + j]);
 			}
 			printf("\n");
-		}
+		}*/
 		float * gpu_src_img = NULL;
 		float * gpu_dst_img = NULL;
 		float * gpu_kernel = NULL;
@@ -226,7 +232,9 @@ namespace gau_pyr
 					float blur_sigma = sigma_diff_array[i];
 					cv::Mat * blur_img;
 					float * kernel;
-					gau_pyr::get_gaussian_blur_kernel(blur_sigma, -1, &kernel);
+					int size = -1;
+					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
+
 				}
 			}
 		}

@@ -49,12 +49,15 @@ int main()
 	cv::Mat src = cv::imread(address);
 	rgb2gray_01(src, src, true);
 	cv::Mat dst;
-	int size = 15;
-	float sigma = 100;
+	int size = 41;
+	float sigma = 5;
 	gau_pyr::cuda_pyramid_down(src, dst, size, sigma);
 	cv::namedWindow("sobel-image", cv::WINDOW_NORMAL);
 	cv::imshow("sobel-image", dst);
 	cv::waitKey();
+	dst *= 255;
+	dst.convertTo(dst, CV_8UC1);
+	cv::imwrite("dst.png", dst);
 	/*
 	conv::opencv_conv(address);*/
 	return 0;
