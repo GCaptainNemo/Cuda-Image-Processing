@@ -29,6 +29,8 @@ namespace gau_pyr
 	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma);
 	
 	// use pointer
-	void build_gauss_pry(cv::Mat src, cv::Mat *** dst, int octave, int intervals, float sigma);
+	void build_gauss_pry(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma);
 
+	// build DoG pyramid
+	void build_dog_pyr(cv::Mat *** src, cv::Mat **** dst, int octave, int intervals);
 }

@@ -256,8 +256,12 @@ namespace gau_pyr
 		free(sigma_diff_array);
 	}; // build_gauss_pry
 
-	void build_gauss_pry(cv::Mat src, cv::Mat *** dst, int octave, int intervals, float sigma) 
+	void build_gauss_pry(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma) 
 	{
+		*dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat **));
+		for (int o = 0; o < octave; ++o) {
+			(*dst)[o] = (cv::Mat **)malloc((intervals + 3) * sizeof(cv::Mat *));
+		}
 		if (src.type() == CV_8UC3)
 		{
 			cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
@@ -291,13 +295,13 @@ namespace gau_pyr
 				// bottom
 				if (o == 0 && i == 0)
 				{
-					dst[o][i] = new cv::Mat(src);
+					*dst[o][i] = new cv::Mat(src);
 				}
 				else if (i == 0)
 				{
 					// first interval of each octave
-					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
-					gau_pyr::down_sampling(*dst[o - 1][intervals], *dst[o][i]);
+					(*dst)[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+					gau_pyr::down_sampling(*(*dst)[o - 1][intervals], *(*dst)[o][i]);
 				}
 				else
 				{
@@ -305,17 +309,39 @@ namespace gau_pyr
 					float blur_sigma = sigma_diff_array[i];
 					float * kernel;
 					int size = -1;
-					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
+					(*dst)[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
 
 					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
-					conv::cuda_conv(*dst[o][i - 1], *dst[o][i], kernel, size);
+					conv::cuda_conv(*(*dst)[o][i - 1], *(*dst)[o][i], kernel, size);
 				}
 			}
 		}
 		free(sigma_diff_array);
+	}; // build_gauss_pry
 
-	
+	void build_dog_pyr(cv::Mat *** src, cv::Mat **** dst, int octave, int intervals) 
+	{
+		// /////////////////////////////////////////////////
+		// initialize
+		// /////////////////////////////////////////////////
+		*dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat**));
+		for (int o = 0; o < octave; ++o) 
+		{
+			
+			(*dst)[o] = (cv::Mat **)malloc((intervals + 2) * sizeof(cv::Mat *));
+		}
+		// /////////////////////////////////////////////////////
+		// construct DoG pyramid based on gaussian pyramid
+		// /////////////////////////////////////////////////////
+		for (int o = 0; o < octave; ++o)
+		{
+			for (int i = 0; i < intervals + 2; ++i) 
+			{
+				(*dst)[o][i] = new cv::Mat(*src[o][i + 1] - *src[o][i]);
+				/*cv::namedWindow("dog", cv::WINDOW_NORMAL);
+				cv::imshow("dog", *(*dst)[o][i]);
+				cv::waitKey(0);*/
+			}
+		}
 	};
-
-
 }

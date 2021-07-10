@@ -82,27 +82,36 @@ void test_build_gau_py()
 	rgb2gray_01(src, src, true);
 	printf("src.type = %d\n", src.type());
 
-	//float *** dst = NULL;
-	int octave = 3;
-	int interval = 3;
-	//std::vector<std::vector<cv::Mat *>> dst(octave, std::vector<cv::Mat *>(interval + 3));
-	cv::Mat *** dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat **));
-	for (int o = 0; o < octave; ++o) {
-		dst[o] = (cv::Mat **)malloc((interval + 3) * sizeof(cv::Mat *));
-	}
-	gau_pyr::build_gauss_pry(src, dst, octave, interval, 1.6);
-	for (int o = 0; o < octave; ++o) 
+	//float *** gaussian_pyramid = NULL;
+	int octave_num = 3;
+	int interval_num = 3;
+	//std::vector<std::vector<cv::Mat *>> gaussian_pyramid(octave_num, std::vector<cv::Mat *>(interval_num + 3));
+	cv::Mat *** gaussian_pyramid = NULL; 
+	gau_pyr::build_gauss_pry(src, &gaussian_pyramid, octave_num, interval_num, 1.6);
+	/*for (int o = 0; o < octave_num; ++o) 
 	{
-		for (int i = 0; i < interval + 3; ++i) 
+		for (int i = 0; i < interval_num + 3; ++i) 
 		{
-			cv::Mat output(*(dst[o][i]));
+			cv::Mat output(*(gaussian_pyramid[o][i]));
 			output *= 255;
 			output.convertTo(output, CV_8UC1);
 			std::string file = std::to_string(o) + "-" + std::to_string(i) + ".png";
 			cv::imwrite(file, output);
 		}
+	}*/
+	cv::Mat *** dog = NULL;
+	gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
+	for (int o = 0; o < octave_num; ++o)
+	{
+		for (int i = 0; i < interval_num + 2; ++i)
+		{
+			cv::Mat output(*(dog[o][i]));
+			output *= 255;
+			output.convertTo(output, CV_8UC1);
+			std::string file = std::to_string(o) + "-" + std::to_string(i) + "dog" + ".png";
+			cv::imwrite(file, output);
+		}
 	}
-
 }
 
 int main() 

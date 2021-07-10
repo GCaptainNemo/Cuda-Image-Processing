@@ -17,4 +17,5 @@ cmake ..
 
 1. 图像2D卷积(`namespace conv`)
 2. 图像Harris角点提取(`namespace harris`)
-3. 构造高斯图像金字塔(`namespace gau_pyr`)   附注：Gaussian blur + down sampling
+3. 构造高斯图像金字塔(`namespace gau_pyr`)   
+4. 构造高斯差分(DoG)金字塔(`namespace gau_pyr`)
