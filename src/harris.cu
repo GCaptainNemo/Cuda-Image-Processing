@@ -55,14 +55,9 @@ namespace harris
 		conv::cuda_conv(src, sobel_x_img, sobel_x, aperture_size);
 		cv::Mat sobel_y_img;
 		conv::cuda_conv(src, sobel_y_img, sobel_y, aperture_size);
-		printf("conv get gradient map finish \n");
-		printf("sobel_x_img.type = %d", sobel_x_img.type());
-
+		
 		// /////////////////////////////////////////////////////////////////////////////////////
-		cv::namedWindow("sobel_x", cv::WINDOW_NORMAL);
-		cv::imshow("sobel_x", sobel_x_img);
-		cv::waitKey(0);
-
+		
 
 
 		int img_rows = src.rows;

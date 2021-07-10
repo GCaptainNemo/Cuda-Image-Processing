@@ -20,17 +20,28 @@ namespace gau_pyr
 	void get_gaussian_blur_kernel(float &sigma, int &kernel_size, float ** gaussian_kernel);
 
 	// down sampling(delete even row, col)
-	void down_sampling(cv::Mat & src, cv::Mat & dst);
+	void cuda_down_sampling(cv::Mat & src, cv::Mat & dst);
+
+	// down sampling(delete even row, col)
+	void cuda_down_sampling(float * src, float ** dst, const int & src_rows, const int & src_cols);
 
 	// pyramid downsample
 	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &size, float & sigma);
 
 	// constuct gaussian pyramid
-	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma);
+	void cuda_build_gauss_pyramid(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma);
 	
 	// use pointer
-	void build_gauss_pry(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma);
+	void cuda_build_gauss_pyramid(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma);
+
+	// use float
+	void cuda_build_gauss_pyramid(float * src, float **** dst, const int & origin_rows, const int & origin_cols,
+		const int &octave, const int &intervals, float sigma);
 
 	// build DoG pyramid
-	void build_dog_pyr(cv::Mat *** src, cv::Mat **** dst, int octave, int intervals);
+	void build_dog_pyr(cv::Mat *** gaussian_pyramid, cv::Mat **** dog_pyramid, int octave, int intervals);
+
+	// build DoG pyramid
+	void build_dog_pyr(float *** gaussian_pyramid, float **** dog_pyramid, int ** row_col_lst, int octave, int intervals);
+
 }

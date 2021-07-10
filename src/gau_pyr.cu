@@ -23,7 +23,7 @@ namespace gau_pyr
 
 		if (src_pixel_id >= src_img_cols * src_img_rows || (src_pixel_row % 2 == 1 && src_pixel_col % 2 == 1))
 		{
-			// out src img and even rows and cols delete
+			// out gaussian_pyramid img and even rows and cols delete
 			return;
 		}
 		int dst_pixel_row = src_pixel_row / 2;
@@ -102,7 +102,7 @@ namespace gau_pyr
 		}
 	}
 
-	void down_sampling(cv::Mat & src, cv::Mat & dst)
+	void cuda_down_sampling(cv::Mat & src, cv::Mat & dst)
 	{
 		HANDLE_ERROR(cudaSetDevice(0));
 		float * gpu_src_img = NULL;
@@ -135,6 +135,41 @@ namespace gau_pyr
 		free(cpu_result);
 		cudaDeviceReset();
 	};
+
+	void cuda_down_sampling(float * src, float ** dst, const int & src_rows, const int & src_cols) 
+	{
+		HANDLE_ERROR(cudaSetDevice(0));
+		float * gpu_src_img = NULL;
+		float * gpu_res_img = NULL;
+		int dst_rows = (src_rows + 1) / 2;
+		int dst_cols = (src_cols + 1) / 2;
+
+		size_t src_size_t = src_rows * src_cols * sizeof(float);
+		size_t dst_size_t = dst_rows * dst_cols * sizeof(float);
+		*dst = (float *)malloc(dst_size_t);
+
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_img, src_size_t));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_res_img, dst_size_t));
+		HANDLE_ERROR(cudaMemcpy(gpu_src_img, src, src_size_t, cudaMemcpyHostToDevice));
+
+		int thread_num = getThreadNum();
+		int block_num = (dst_cols * dst_rows - 0.5) / thread_num + 1;
+		dim3 grid_size(block_num, 1, 1);
+		dim3 block_size(thread_num, 1, 1);
+		gau_pyr::down_sample_kernel << < grid_size, block_size >> > (gpu_src_img, gpu_res_img, src_rows, src_cols, dst_rows, dst_cols);
+		float * cpu_result = (float *)malloc(dst_size_t);
+		HANDLE_ERROR(cudaMemcpy(*dst, gpu_res_img, dst_size_t, cudaMemcpyDeviceToHost));
+
+		
+		// free the memory
+		cudaFree(gpu_res_img);
+		cudaFree(gpu_src_img);
+		free(cpu_result);
+		cudaDeviceReset();
+
+	
+	};
+
 
 	void cuda_pyramid_down(cv::Mat & src, cv::Mat & dst, int &kernel_dim, float & sigma)
 	{
@@ -196,7 +231,7 @@ namespace gau_pyr
 	};
 
 	// return gaussian pyramid (octave x (intervals + 3) imgs
-	void build_gauss_pry(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma)
+	void cuda_build_gauss_pyramid(cv::Mat src, std::vector<std::vector<cv::Mat *>> &dst, int octave, int intervals, float sigma)
 	{
 		if (src.type() == CV_8UC3) 
 		{
@@ -228,7 +263,7 @@ namespace gau_pyr
 			for (int i = 0; i < intervals + 3; ++i) 
 			{
 				printf("octave = %d, intervals = %d\n", o, i);
-				//dst[o][i] = malloc()
+				//dog_pyramid[o][i] = malloc()
 				// bottom
 				if (o == 0 && i == 0) 
 				{
@@ -238,7 +273,7 @@ namespace gau_pyr
 				{
 					// first interval of each octave
 					dst[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
-					gau_pyr::down_sampling(*dst[o-1][intervals], *dst[o][i]);
+					gau_pyr::cuda_down_sampling(*dst[o-1][intervals], *dst[o][i]);
 				}
 				else 
 				{
@@ -254,9 +289,9 @@ namespace gau_pyr
 			}
 		}
 		free(sigma_diff_array);
-	}; // build_gauss_pry
+	}; // cuda_build_gauss_pyramid
 
-	void build_gauss_pry(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma) 
+	void cuda_build_gauss_pyramid(cv::Mat src, cv::Mat **** dst, int octave, int intervals, float sigma) 
 	{
 		*dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat **));
 		for (int o = 0; o < octave; ++o) {
@@ -291,7 +326,7 @@ namespace gau_pyr
 			for (int i = 0; i < intervals + 3; ++i)
 			{
 				printf("octave = %d, intervals = %d\n", o, i);
-				//dst[o][i] = malloc()
+				//dog_pyramid[o][i] = malloc()
 				// bottom
 				if (o == 0 && i == 0)
 				{
@@ -301,7 +336,7 @@ namespace gau_pyr
 				{
 					// first interval of each octave
 					(*dst)[o][i] = new cv::Mat(origin_row, origin_col, CV_32FC1);
-					gau_pyr::down_sampling(*(*dst)[o - 1][intervals], *(*dst)[o][i]);
+					gau_pyr::cuda_down_sampling(*(*dst)[o - 1][intervals], *(*dst)[o][i]);
 				}
 				else
 				{
@@ -317,18 +352,87 @@ namespace gau_pyr
 			}
 		}
 		free(sigma_diff_array);
-	}; // build_gauss_pry
+	}; // cuda_build_gauss_pyramid
 
-	void build_dog_pyr(cv::Mat *** src, cv::Mat **** dst, int octave, int intervals) 
+	void cuda_build_gauss_pyramid(float * src, float **** dst, const int & origin_rows, const int & origin_cols,
+		const int &octave, const int &intervals, float sigma) 
+	{
+		*dst = (float ***)malloc(octave * sizeof(float **));
+		for (int o = 0; o < octave; ++o) {
+			(*dst)[o] = (float **)malloc((intervals + 3) * sizeof(float *));
+		}
+		
+		double * sigma_diff_array = (double *)malloc((3 + intervals) * sizeof(double));
+
+		// init sigma (1.6 default)
+		sigma_diff_array[0] = sigma;
+		float k = pow(2.0, 1.0 / intervals);
+		for (int i = 1; i < intervals + 3; ++i)
+		{
+			float sig_prev = pow(k, i - 1) * sigma;
+			float sig_total = sig_prev * k;
+			sigma_diff_array[i] = sqrt(sig_total * sig_total - sig_prev * sig_prev);
+		}
+
+		int ** row_col_lst = (int **)malloc(octave * sizeof(int*));
+		int origin_row = origin_rows * 2;
+		int origin_col = origin_cols * 2;
+		for (int o = 0; o < octave; ++o) 
+		{
+			origin_row = (origin_row + 1) / 2;
+			origin_col = (origin_col + 1) / 2;
+			row_col_lst[o] = (int *)malloc(2 * sizeof(int));
+			row_col_lst[o][0] = origin_row;
+			row_col_lst[o][1] = origin_col;
+		}
+
+		
+		for (int o = 0; o < octave; ++o)
+		{
+			for (int i = 0; i < intervals + 3; ++i)
+			{
+				if (o == 0 && i == 0)
+				{
+					(*dst)[o][i] = (float *)malloc(row_col_lst[o][0] * row_col_lst[o][1] *sizeof(float));
+					for (int index = 0; index < row_col_lst[o][0] * row_col_lst[o][1]; ++index) {
+						(*dst)[o][i][index] = src[index];
+					}
+				}
+				else if (i == 0)
+				{
+					// first interval of each octave
+					gau_pyr::cuda_down_sampling((*dst)[o - 1][intervals], &(*dst)[o][i], row_col_lst[o - 1][0], row_col_lst[o - 1][1]);
+				}
+				else
+				{
+					float blur_sigma = sigma_diff_array[i];
+					float * kernel;
+					int size = -1;
+					(*dst)[o][i] = (float *)malloc(row_col_lst[o][0] * row_col_lst[o][1] * sizeof(float));
+					gau_pyr::get_gaussian_blur_kernel(blur_sigma, size, &kernel);
+					conv::cuda_conv((*dst)[o][i - 1], (*dst)[o][i], row_col_lst[o][0], row_col_lst[o][1], kernel, size);
+				}
+			}
+		}
+		free(sigma_diff_array);
+		for (int o = 0; o < octave; ++o) 
+		{
+			free(row_col_lst[o]);
+		}
+		free(row_col_lst);
+	}; // cuda_build_gauss_pyramid(float *)
+
+
+	void build_dog_pyr(cv::Mat *** gaussian_pyramid, cv::Mat **** dog_pyramid, int octave, int intervals) 
 	{
 		// /////////////////////////////////////////////////
 		// initialize
 		// /////////////////////////////////////////////////
-		*dst = (cv::Mat ***)malloc(octave * sizeof(cv::Mat**));
+		*dog_pyramid = (cv::Mat ***)malloc(octave * sizeof(cv::Mat**));
 		for (int o = 0; o < octave; ++o) 
 		{
 			
-			(*dst)[o] = (cv::Mat **)malloc((intervals + 2) * sizeof(cv::Mat *));
+			(*dog_pyramid)[o] = (cv::Mat **)malloc((intervals + 2) * sizeof(cv::Mat *));
 		}
 		// /////////////////////////////////////////////////////
 		// construct DoG pyramid based on gaussian pyramid
@@ -337,10 +441,37 @@ namespace gau_pyr
 		{
 			for (int i = 0; i < intervals + 2; ++i) 
 			{
-				(*dst)[o][i] = new cv::Mat(*src[o][i + 1] - *src[o][i]);
+				(*dog_pyramid)[o][i] = new cv::Mat(*gaussian_pyramid[o][i + 1] - *gaussian_pyramid[o][i]);
 				/*cv::namedWindow("dog", cv::WINDOW_NORMAL);
-				cv::imshow("dog", *(*dst)[o][i]);
+				cv::imshow("dog", *(*dog_pyramid)[o][i]);
 				cv::waitKey(0);*/
+			}
+		}
+	};
+
+	void build_dog_pyr(float *** gaussian_pyramid, float **** dog_pyramid, int ** row_col_lst, int octave, int intervals) 
+	{
+		// /////////////////////////////////////////////////
+		// initialize
+		// /////////////////////////////////////////////////
+		*dog_pyramid = (float ***)malloc(octave * sizeof(float **));
+		for (int o = 0; o < octave; ++o)
+		{
+
+			(*dog_pyramid)[o] = (float **)malloc((intervals + 2) * sizeof(float *));
+		}
+		// /////////////////////////////////////////////////////
+		// construct DoG pyramid based on gaussian pyramid
+		// /////////////////////////////////////////////////////
+		for (int o = 0; o < octave; ++o)
+		{
+			for (int i = 0; i < intervals + 2; ++i)
+			{
+				(*dog_pyramid)[o][i] = (float *)malloc(row_col_lst[o][0] * row_col_lst[o][1] * sizeof(float));
+				for (int index = 0; index < row_col_lst[o][0] * row_col_lst[o][1]; index++) 
+				{
+					(*dog_pyramid)[o][i][index] = gaussian_pyramid[o][i + 1][index] - gaussian_pyramid[o][i][index];
+				}
 			}
 		}
 	};

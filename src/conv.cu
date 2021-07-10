@@ -118,7 +118,7 @@ namespace conv {
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_result, img_size_t));
 		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_size_t));
 		// memory copy kernel and linshi from host to device
-		HANDLE_ERROR(cudaMemcpy(gpu_img, src, img_size_t, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_img, (float *)src, img_size_t, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size_t, cudaMemcpyHostToDevice));
 
 		// //////////////////////////////////////////////////////////////////////////////////////////////

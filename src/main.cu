@@ -65,13 +65,32 @@ void test_pyr_down()
 	cv::imwrite("dst.png", dst); 
 }// test_pyr_down
 
+void test_down_sample() 
+{
+	const char * address = "../data/img1.png";
+	cv::Mat src = cv::imread(address);
+	cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
+	src.convertTo(src, CV_32FC1);
+
+	float * res = NULL;
+	gau_pyr::cuda_down_sampling((float *)src.data, &res, src.rows, src.cols);
+	cv::Mat dst((src.rows + 1) / 2, (src.cols + 1) / 2, CV_32FC1, res);
+	cv::normalize(dst, dst, 0.0, 1.0, cv::NORM_MINMAX);
+	cv::namedWindow("dst", cv::WINDOW_NORMAL);
+	cv::imshow("dst", dst);
+	cv::waitKey(0);
+
+}
+
 void test_harris(const char * option) 
 {
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
+	cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
+	src.convertTo(src, CV_32FC1);
+	
 	cv::Mat dst;
 	float prop = 0.03;
-	cv::Mat harris_bw_img;
 	if (strcmp(option, "mat") == 0) {
 		harris::cuda_harris(src, dst, 4, prop, 3);
 	}
@@ -80,8 +99,9 @@ void test_harris(const char * option)
 		int cols = src.cols;
 		float * res = new float[rows * cols];
 		harris::cuda_harris((float *)src.data, res, rows, cols, 4, prop, 3);
-		harris_bw_img = cv::Mat(rows, cols, CV_32FC1, res);
+		dst = cv::Mat(rows, cols, CV_32FC1, res).clone();
 	}
+	cv::Mat harris_bw_img;
 	cv::threshold(dst, harris_bw_img, 0.00001, 255, cv::THRESH_BINARY);
 	cv::namedWindow("bw", cv::WINDOW_NORMAL);
 	cv::imshow("bw", harris_bw_img);
@@ -93,48 +113,97 @@ void test_harris(const char * option)
 
 }// test_harris
 
-void test_build_gau_py() 
+void test_build_gau_py(const char *option) 
 {
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
-
-	printf("src.type = %d\n", src.type());
 	rgb2gray_01(src, src, true);
-	printf("src.type = %d\n", src.type());
 
 	//float *** gaussian_pyramid = NULL;
 	int octave_num = 3;
 	int interval_num = 3;
 	//std::vector<std::vector<cv::Mat *>> gaussian_pyramid(octave_num, std::vector<cv::Mat *>(interval_num + 3));
-	cv::Mat *** gaussian_pyramid = NULL; 
-	gau_pyr::build_gauss_pry(src, &gaussian_pyramid, octave_num, interval_num, 1.6);
-	/*for (int o = 0; o < octave_num; ++o) 
-	{
-		for (int i = 0; i < interval_num + 3; ++i) 
+	if (strcmp(option, "mat") == 0) {
+		cv::Mat *** gaussian_pyramid = NULL;
+		gau_pyr::cuda_build_gauss_pyramid(src, &gaussian_pyramid, octave_num, interval_num, 1.6);
+		for (int o = 0; o < octave_num; ++o)
 		{
-			cv::Mat output(*(gaussian_pyramid[o][i]));
-			output *= 255;
-			output.convertTo(output, CV_8UC1);
-			std::string file = std::to_string(o) + "-" + std::to_string(i) + ".png";
-			cv::imwrite(file, output);
+			for (int i = 0; i < interval_num + 3; ++i)
+			{
+				cv::Mat output(*(gaussian_pyramid[o][i]));
+				output *= 255;
+				output.convertTo(output, CV_8UC1);
+				std::string file = std::to_string(o) + "-" + std::to_string(i) + ".png";
+				cv::imwrite(file, output);
+			}
 		}
-	}*/
-	cv::Mat *** dog = NULL;
-	gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
-	/*for (int o = 0; o < octave_num; ++o)
-	{
-		for (int i = 0; i < interval_num + 2; ++i)
+		//cv::Mat *** dog = NULL;
+		//gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
+		/*for (int o = 0; o < octave_num; ++o)
 		{
-			cv::Mat output(*(dog[o][i]));
-			output *= 255;
-			output.convertTo(output, CV_8UC1);
-			std::string file = std::to_string(o) + "-" + std::to_string(i) + "dog" + ".png";
-			cv::imwrite(file, output);
+			for (int i = 0; i < interval_num + 2; ++i)
+			{
+				cv::Mat output(*(dog[o][i]));
+				output *= 255;
+				output.convertTo(output, CV_8UC1);
+				std::string file = std::to_string(o) + "-" + std::to_string(i) + "dog" + ".png";
+				cv::imwrite(file, output);
+			}
+		}*/
+		//int *** musk = NULL;
+		//sift::detect_extreme_point(&dog, &musk, octave_num, interval_num);
+	}
+	else 
+	{
+		float *** gaussian_pyramid = NULL;
+		gau_pyr::cuda_build_gauss_pyramid((float *)src.data, &gaussian_pyramid, src.rows, src.cols, octave_num, interval_num, 1.6);
+		int ** row_col_lst = (int **)malloc(octave_num * sizeof(int*));
+		int origin_row = src.rows * 2;
+		int origin_col = src.cols * 2;
+		for (int o = 0; o < octave_num; ++o)
+		{
+			origin_row = (origin_row + 1) / 2;
+			origin_col = (origin_col + 1) / 2;
+			row_col_lst[o] = (int *)malloc(2 * sizeof(int));
+			row_col_lst[o][0] = origin_row;
+			row_col_lst[o][1] = origin_col;
 		}
-	}*/
-	int *** musk = NULL;
-	sift::detect_extreme_point(&dog, &musk, octave_num, interval_num);
+		for (int o = 0; o < octave_num; ++o)
+		{
+			for (int i = 0; i < interval_num + 3; ++i)
+			{
+				cv::Mat output = cv::Mat(row_col_lst[o][0], row_col_lst[o][1], CV_32FC1, gaussian_pyramid[o][i]).clone();
+				output *= 255;
+				output.convertTo(output, CV_8UC1);
+				std::string file = std::to_string(o) + "-" + std::to_string(i) + ".png";
+				cv::imwrite(file, output);
+			}
+		}
+		float *** dog_pyramid;
+		gau_pyr::build_dog_pyr(gaussian_pyramid, &dog_pyramid, row_col_lst, octave_num, interval_num);
+		for (int o = 0; o < octave_num; ++o)
+		{
+			for (int i = 0; i < interval_num + 2; ++i)
+			{
+				cv::Mat output(row_col_lst[o][0], row_col_lst[o][1], CV_32FC1,  dog_pyramid[o][i]);
+				output *= 255;
+				output.convertTo(output, CV_8UC1);
+				std::string file = std::to_string(o) + "-" + std::to_string(i) + "dog" + ".png";
+				cv::imwrite(file, output);
+			}
+		}
+
+		for (int o = 0; o < octave_num; ++o)
+		{
+			free(row_col_lst[o]);
+		}
+		free(row_col_lst);
+	
+	}
 }
+
+	// detect extreme point;
+	
 
 int main() 
 {
@@ -143,11 +212,11 @@ int main()
 
 	// ///////////////////////////////////////
 	
-	
 	printf("kernel\n");
 	//test_cuda_conv("mat");
-	test_harris("float");
-	//test_build_gau_py();
+	//test_down_sample();
+	//test_harris("float");
+	test_build_gau_py("FLOAT");
 
 	// conv::opencv_conv(address);*/
 	return 0;
