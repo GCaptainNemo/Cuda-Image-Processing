@@ -3,6 +3,7 @@
 #include "../include/utils.h"
 #include "../include/harris.h"
 #include "../include/gau_pyr.h"
+#include "../include/sift.h"
 #include "opencv2/opencv.hpp"
 #include <vector>
 #include<opencv2/core/core.hpp>
@@ -101,7 +102,7 @@ void test_build_gau_py()
 	}*/
 	cv::Mat *** dog = NULL;
 	gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
-	for (int o = 0; o < octave_num; ++o)
+	/*for (int o = 0; o < octave_num; ++o)
 	{
 		for (int i = 0; i < interval_num + 2; ++i)
 		{
@@ -111,7 +112,9 @@ void test_build_gau_py()
 			std::string file = std::to_string(o) + "-" + std::to_string(i) + "dog" + ".png";
 			cv::imwrite(file, output);
 		}
-	}
+	}*/
+	int *** musk = NULL;
+	sift::detect_extreme_point(&dog, &musk, octave_num, interval_num);
 }
 
 int main() 
@@ -123,6 +126,7 @@ int main()
 	
 	
 	printf("kernel\n");
+	
 	test_build_gau_py();
 
 	// conv::opencv_conv(address);*/
