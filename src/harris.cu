@@ -39,12 +39,12 @@ namespace harris
 		
 		cudaSetDevice(0);
 		// 3 x 3 Sobel operator
-		//float * sobel_y = new float[aperture_size * aperture_size];
+		//float * sobel_y_kernel = new float[aperture_size * aperture_size];
 		float * sobel_y = (float *)malloc(aperture_size * aperture_size * sizeof(float));
 		sobel_y[0] = -1.; sobel_y[1] = -2.; sobel_y[2] = -1.;
 		sobel_y[3] =  0.; sobel_y[4] = 0.; sobel_y[5] = 0.;
 		sobel_y[6] =  1.; sobel_y[7] = 2.; sobel_y[8] = 1.;
-		//float * sobel_x = new float[aperture_size * aperture_size];
+		//float * sobel_x_kernel = new float[aperture_size * aperture_size];
 		float * sobel_x = (float *)malloc(aperture_size * aperture_size * sizeof(float));
 		sobel_x[0] = -1.; sobel_x[1] = 0.; sobel_x[2] = 1.;
 		sobel_x[3] = -2.; sobel_x[4] = 0.; sobel_x[5] = 2.;
@@ -109,6 +109,76 @@ namespace harris
 		free(sobel_x);
 		cudaDeviceReset();
 	}
+
+	void cuda_harris(float * src, float * dst, const int & img_rows, const int & img_cols, const int & block_size,
+		const float & prop, const int &aperture_size) 
+	{
+		cudaSetDevice(0);
+		// 3 x 3 Sobel operator
+		//float * sobel_y_kernel = new float[aperture_size * aperture_size];
+		float * sobel_y_kernel = (float *)malloc(aperture_size * aperture_size * sizeof(float));
+		sobel_y_kernel[0] = -1.; sobel_y_kernel[1] = -2.; sobel_y_kernel[2] = -1.;
+		sobel_y_kernel[3] = 0.; sobel_y_kernel[4] = 0.; sobel_y_kernel[5] = 0.;
+		sobel_y_kernel[6] = 1.; sobel_y_kernel[7] = 2.; sobel_y_kernel[8] = 1.;
+		//float * sobel_x_kernel = new float[aperture_size * aperture_size];
+		float * sobel_x_kernel = (float *)malloc(aperture_size * aperture_size * sizeof(float));
+		sobel_x_kernel[0] = -1.; sobel_x_kernel[1] = 0.; sobel_x_kernel[2] = 1.;
+		sobel_x_kernel[3] = -2.; sobel_x_kernel[4] = 0.; sobel_x_kernel[5] = 2.;
+		sobel_x_kernel[6] = -1.; sobel_x_kernel[7] = 0.; sobel_x_kernel[8] = 1.;
+
+
+		// conv get gradient map.
+		size_t img_size_float = img_cols * img_rows * sizeof(float);
+
+		float * sobel_x_img = (float *)malloc(img_size_float);
+
+		conv::cuda_conv(src, sobel_x_img, img_rows, img_cols, sobel_x_kernel, aperture_size);
+
+		float * sobel_y_img = (float *)malloc(img_size_float);
+		conv::cuda_conv(src, sobel_y_img, img_rows, img_cols, sobel_y_kernel, aperture_size);
+
+	
+		float * sobel_x_img_vec = NULL;
+		float * sobel_y_img_vec = NULL;
+		float * gpu_result_vec = NULL;
+
+		// memory allocate
+		HANDLE_ERROR(cudaMalloc((void **)& sobel_x_img_vec, img_size_float));
+		HANDLE_ERROR(cudaMalloc((void **)& sobel_y_img_vec, img_size_float));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_result_vec, img_size_float));
+
+		// memory copy 
+		HANDLE_ERROR(cudaMemcpy(sobel_x_img_vec, sobel_x_img, img_size_float, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(sobel_y_img_vec, sobel_y_img, img_size_float, cudaMemcpyHostToDevice));
+
+
+		int thread_num = getThreadNum();
+		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
+		printf("block_num = %d, thread_num = %d !\n", block_num, thread_num);
+		//dim3 thread_grid_size(block_num, 1, 1);
+		//dim3 thread_block_size(thread_num, 1, 1);
+
+		harris::harris_kernel << < block_num, thread_num >> >
+			(sobel_x_img_vec, sobel_y_img_vec, gpu_result_vec, img_rows, img_cols, block_size, prop);
+
+
+		HANDLE_ERROR(cudaMemcpy(dst, gpu_result_vec, img_size_float, cudaMemcpyDeviceToHost));
+
+		// //////////////////////////////////////////////////////////////////////
+		// release memory
+		// /////////////////////////////////////////////////////////////////////
+		HANDLE_ERROR(cudaFree(sobel_x_img_vec));
+		HANDLE_ERROR(cudaFree(sobel_y_img_vec));
+		HANDLE_ERROR(cudaFree(gpu_result_vec));
+
+		free(sobel_y_kernel);
+		free(sobel_x_kernel);
+		free(sobel_x_img);
+		free(sobel_y_img);
+		
+		cudaDeviceReset();
+	};
+
 
 	__global__ void harris_kernel(float * sobel_x_vec, float * sobel_y_vec, float * gpu_result_vec, 
 		const int img_row, const int img_col, const int block_size, 

@@ -22,20 +22,31 @@ void rgb2gray_01(cv::Mat &src, cv::Mat & dst, bool is_normalize)
 	}
 }; // rgb2gray_01
 
-void test_cuda_conv() 
+void test_cuda_conv(const char *option) 
 {
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
 	rgb2gray_01(src, src, true);
-	float sigma = 5;
-	int size = 5;
+	float sigma = 100;
+	int kernel_size = 20;
 	float * gaussian_kernel;
-	gau_pyr::get_gaussian_blur_kernel(sigma, size, &gaussian_kernel);
+	gau_pyr::get_gaussian_blur_kernel(sigma, kernel_size, &gaussian_kernel);
 	cv::Mat dst;
-	conv::cuda_conv(src, dst, gaussian_kernel, size);
+	if (strcmp(option, "mat") == 0)
+	{
+		
+		conv::cuda_conv(src, dst, gaussian_kernel, kernel_size);
+	}
+	else {
+		float * res = new float[src.rows * src.cols];
+		conv::cuda_conv((float *)src.data, res, src.rows, src.cols, gaussian_kernel, kernel_size);
+		dst = cv::Mat(src.rows, src.cols, CV_32FC1, res).clone();
+		delete[] res;
+	}
 	cv::namedWindow("dst", cv::WINDOW_NORMAL);
 	cv::imshow("dst", dst);
 	cv::waitKey(0);
+	
 }; // test_cuda_conv()
 
 void test_pyr_down() 
@@ -54,15 +65,23 @@ void test_pyr_down()
 	cv::imwrite("dst.png", dst); 
 }// test_pyr_down
 
-void test_harris() 
+void test_harris(const char * option) 
 {
 	const char * address = "../data/img1.png";
 	cv::Mat src = cv::imread(address);
 	cv::Mat dst;
 	float prop = 0.03;
-	harris::cuda_harris(src, dst, 4, prop, 3);
-
 	cv::Mat harris_bw_img;
+	if (strcmp(option, "mat") == 0) {
+		harris::cuda_harris(src, dst, 4, prop, 3);
+	}
+	else {
+		int rows = src.rows;
+		int cols = src.cols;
+		float * res = new float[rows * cols];
+		harris::cuda_harris((float *)src.data, res, rows, cols, 4, prop, 3);
+		harris_bw_img = cv::Mat(rows, cols, CV_32FC1, res);
+	}
 	cv::threshold(dst, harris_bw_img, 0.00001, 255, cv::THRESH_BINARY);
 	cv::namedWindow("bw", cv::WINDOW_NORMAL);
 	cv::imshow("bw", harris_bw_img);
@@ -126,8 +145,9 @@ int main()
 	
 	
 	printf("kernel\n");
-	
-	test_build_gau_py();
+	//test_cuda_conv("mat");
+	test_harris("float");
+	//test_build_gau_py();
 
 	// conv::opencv_conv(address);*/
 	return 0;

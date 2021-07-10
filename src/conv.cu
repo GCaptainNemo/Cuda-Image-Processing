@@ -101,6 +101,46 @@ namespace conv {
 		cudaDeviceReset();
 	}
 
+	void cuda_conv(float * src, float * dst, int img_rows, int img_cols, float * kernel, int kernel_dim) 
+	{
+		// read linshi and convert to gray image
+		cudaSetDevice(0);
+
+		float * gpu_img = NULL;
+		float * gpu_result = NULL;
+		float * gpu_kernel = NULL;
+
+
+		size_t img_size_t = img_cols * img_rows * sizeof(float);
+		size_t kernel_size_t = kernel_dim * kernel_dim * sizeof(float);
+
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_img, img_size_t));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_result, img_size_t));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_size_t));
+		// memory copy kernel and linshi from host to device
+		HANDLE_ERROR(cudaMemcpy(gpu_img, src, img_size_t, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size_t, cudaMemcpyHostToDevice));
+
+		// //////////////////////////////////////////////////////////////////////////////////////////////
+		// resident thread; every pixel of result correspond to a thread;
+		// //////////////////////////////////////////////////////////////////////////////////////////////
+
+		int thread_num = getThreadNum();
+		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
+		dim3 grid_size(block_num, 1, 1);
+		dim3 block_size(thread_num, 1, 1);
+		conv::conv_kernel << < grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
+
+		HANDLE_ERROR(cudaMemcpy(dst, gpu_result, img_size_t, cudaMemcpyDeviceToHost));
+
+		// release gpu memory
+		HANDLE_ERROR(cudaFree(gpu_img));
+		HANDLE_ERROR(cudaFree(gpu_kernel));
+		HANDLE_ERROR(cudaFree(gpu_result));
+		cudaDeviceReset();
+	};
+
+
 	void opencv_conv(const char * address)
 	{
 		cv::Mat kernel_ = (cv::Mat_<float>(3, 3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
