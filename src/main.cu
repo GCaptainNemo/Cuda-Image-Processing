@@ -137,8 +137,8 @@ void test_build_gau_py(const char *option)
 				cv::imwrite(file, output);
 			}
 		}
-		//cv::Mat *** dog = NULL;
-		//gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
+		cv::Mat *** dog = NULL;
+		gau_pyr::build_dog_pyr(gaussian_pyramid, &dog, octave_num, interval_num);
 		/*for (int o = 0; o < octave_num; ++o)
 		{
 			for (int i = 0; i < interval_num + 2; ++i)
@@ -150,8 +150,8 @@ void test_build_gau_py(const char *option)
 				cv::imwrite(file, output);
 			}
 		}*/
-		//int *** musk = NULL;
-		//sift::detect_extreme_point(&dog, &musk, octave_num, interval_num);
+		int *** musk = NULL;
+		sift::detect_extreme_point(dog, &musk, octave_num, interval_num);
 	}
 	else 
 	{
@@ -192,6 +192,9 @@ void test_build_gau_py(const char *option)
 				cv::imwrite(file, output);
 			}
 		}
+		int *** mask = NULL;
+		sift::detect_extreme_point(dog_pyramid, &mask, row_col_lst, octave_num, interval_num);
+
 
 		for (int o = 0; o < octave_num; ++o)
 		{
@@ -216,7 +219,7 @@ int main()
 	//test_cuda_conv("mat");
 	//test_down_sample();
 	//test_harris("float");
-	test_build_gau_py("FLOAT");
+	test_build_gau_py("mat");
 
 	// conv::opencv_conv(address);*/
 	return 0;

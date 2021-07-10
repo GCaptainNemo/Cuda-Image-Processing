@@ -8,7 +8,10 @@ namespace sift
 		int total_interval);
 
 	// detect extreme point on the DoG pyramid
-	void detect_extreme_point(cv::Mat **** dog_pyramid, int **** musk, int octvs, int intervals) ;
+	void detect_extreme_point(cv::Mat *** dog_pyramid, int **** musk, int octvs, int intervals) ;
+
+	// detect extreme point on the DoG pyramid
+	void detect_extreme_point(float *** dog_pyramid, int **** musk, int ** row_col_lst, int octvs, int intervals);
 
 	// remove low contrast points and edge points£¨Harris corner£©.
 	void remove_points();
