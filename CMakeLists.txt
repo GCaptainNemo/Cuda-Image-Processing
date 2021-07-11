@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(conv)
+project(cuda_imape_processing)
 
 find_package(CUDA REQUIRED)
 #set(OpenCV_FOUND 1)

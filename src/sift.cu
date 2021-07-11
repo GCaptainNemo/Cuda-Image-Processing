@@ -20,16 +20,12 @@ namespace sift
 		{
 			return;
 		}
-		printf("cur_oct = %d, cur_interval = %d\n", cur_oct, cur_interval);
 
 		// remove out of the img and img border point
 		int img_row = row_col_gpu[cur_oct][0];
 		int img_col = row_col_gpu[cur_oct][1];
 		int cur_index = threadIdx.x + blockDim.x * cur_block;
-		if (cur_index < 10) 
-		{
-			printf("cur_index = %d, img_row = %d, img_col = %f\n", cur_index, img_row, img_col);
-		}
+		
 		int cur_row = cur_index / img_col;
 		int cur_col = cur_index % img_col;
 		if (cur_row == 0 || cur_row >= img_row - 1 || cur_col == 0 || cur_col >= img_col - 1) 
@@ -62,15 +58,12 @@ namespace sift
 		// extreme point
 		if (max_delta < 1e-3 || max_delta > -1e-3 ||  min_delta < 1e-3 || min_delta > 1e-3)
 		{
-			printf("cur_oct = %d, cur_interval = %d\n", cur_oct, cur_interval);
+			//printf("cur_oct = %d, cur_interval = %d\n", cur_oct, cur_interval);
 			mask_gpu[cur_oct][cur_interval][cur_index] = 1;
-		}
-		else {
-			printf("unfit\n");
 		}
 	};
 
-
+	// gpu上的指针不能用数组下标[]进行初始化
 	void detect_extreme_point(cv::Mat *** dog_pyramid, int **** mask_cpu, int octvs, int intervals) 
 	{
 		float *** dog_pyramid_cpu = (float ***)malloc(octvs * sizeof(float**));
@@ -107,10 +100,7 @@ namespace sift
 		HANDLE_ERROR(cudaMalloc((void **)&dog_pyramid_gpu, octvs * sizeof(float**)));
 		HANDLE_ERROR(cudaMalloc((void **)&mask_gpu, octvs * sizeof(int**)));
 		HANDLE_ERROR(cudaMalloc((void **)&row_col_gpu, octvs * sizeof(int*)));
-		HANDLE_ERROR(cudaMemcpy(dog_pyramid_gpu, dog_pyramid_cpu, octvs * sizeof(float**), cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(mask_gpu, *mask_cpu, octvs * sizeof(int**), cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(row_col_gpu, row_col_cpu, octvs * sizeof(int*), cudaMemcpyHostToDevice));
-
+		
 		// ///////////////////////////////////////////////////////////////
 		// allocate block and grid
 		// ///////////////////////////////////////////////////////////////
@@ -150,33 +140,57 @@ namespace sift
 
 	void detect_extreme_point(float *** dog_pyramid_cpu, int **** mask_cpu, int ** row_col_cpu, int octvs, int intervals)
 	{
-		
+		HANDLE_ERROR(cudaSetDevice(0));
 		// //////////////////////////////////////////////////////////////////
 		// allocate gpu memory and cpy from cpu to gpu
 		// //////////////////////////////////////////////////////////////////
 		float *** dog_pyramid_gpu = NULL;
 		int *** mask_gpu = NULL;
 		int ** row_col_gpu = NULL;
-		// initialize mask_cpu, mask_gpu and memcpy from cpu to gpu
 		
-		*mask_cpu = (int ***)malloc(octvs * sizeof(int **));
 		HANDLE_ERROR(cudaMalloc((void ****)&mask_gpu, octvs * sizeof(int**)));
+		HANDLE_ERROR(cudaMalloc((void ****)&dog_pyramid_gpu, octvs * sizeof(float**)));
+		HANDLE_ERROR(cudaMalloc((void ***)&row_col_gpu, octvs * sizeof(int*)));
+		float *** total_dog_pyramid_cpu = (float ***)malloc(octvs * sizeof(float **));
+		int *** mask_cpu_total = (int ***)malloc(octvs * sizeof(int **));
+		int ** cpu_row_col_total = (int **)malloc(octvs * sizeof(int *));
 		for (int o = 0; o < octvs; ++o) 
 		{
-			(*mask_cpu)[o] = (int **)malloc(intervals * sizeof(int *));
-			HANDLE_ERROR(cudaMemcpy(dog_pyramid_gpu, dog_pyramid_cpu, octvs * sizeof(float**), cudaMemcpyHostToDevice));
-
+			int pixel_num = row_col_cpu[o][0] * row_col_cpu[o][1];
+			int ** intervals_mask_gpu;
+			int ** intervals_mask_cpu = (int **)malloc((intervals + 2) * sizeof(int*));
+			HANDLE_ERROR(cudaMalloc((void ***)&(intervals_mask_gpu), (intervals + 2) * sizeof(int*)));
+			float ** intervals_pyramid_gpu;
+			float ** intervals_pyramid_cpu = (float **)malloc((intervals + 2) * sizeof(float*));
+			HANDLE_ERROR(cudaMalloc((void ***)&(intervals_pyramid_gpu), (intervals + 2) * sizeof(float*)));
+			int * interval_row_gpu;
+			HANDLE_ERROR(cudaMalloc((void **)&(interval_row_gpu), 2 * sizeof(int)));
+			HANDLE_ERROR(cudaMemcpy(interval_row_gpu, row_col_cpu[o], 2 * sizeof(int), cudaMemcpyHostToDevice));
+			cpu_row_col_total[o] = interval_row_gpu;
 			for (int i = 0; i < intervals + 2; ++i) 
 			{
-				(*mask_cpu)[o][i] = (int *)calloc(row_col_cpu[o][0] * row_col_cpu[o][1], sizeof(int));
+
+				int * pixel_mask_gpu;
+				int * pixel_mask_cpu = (int *)calloc(pixel_num, sizeof(int));
+				HANDLE_ERROR(cudaMalloc((void **)&pixel_mask_gpu, pixel_num * sizeof(int)));
+				HANDLE_ERROR(cudaMemcpy(pixel_mask_gpu, pixel_mask_cpu, pixel_num * sizeof(int), cudaMemcpyHostToDevice));
+				intervals_mask_cpu[i] = pixel_mask_gpu;
+				float * dog_pixel_gpu;
+				HANDLE_ERROR(cudaMalloc((void **)&dog_pixel_gpu, pixel_num * sizeof(float)));
+				HANDLE_ERROR(cudaMemcpy(dog_pixel_gpu, dog_pyramid_cpu[o][i], pixel_num * sizeof(float), cudaMemcpyHostToDevice));
+				intervals_pyramid_cpu[i] = dog_pixel_gpu;
 			}
+			HANDLE_ERROR(cudaMemcpy(intervals_pyramid_gpu, intervals_pyramid_cpu, 
+				(intervals + 2) * sizeof(float*), cudaMemcpyHostToDevice));
+			HANDLE_ERROR(cudaMemcpy(intervals_mask_gpu, intervals_mask_cpu,
+				(intervals + 2) * sizeof(int*), cudaMemcpyHostToDevice));
+
+			total_dog_pyramid_cpu[o] = intervals_pyramid_gpu;
+			mask_cpu_total[o] = intervals_mask_gpu;
 		}
-		HANDLE_ERROR(cudaSetDevice(0));
-		HANDLE_ERROR(cudaMalloc((void **)&dog_pyramid_gpu, octvs * sizeof(float**)));
-		HANDLE_ERROR(cudaMalloc((void **)&row_col_gpu, octvs * sizeof(int*)));
-		HANDLE_ERROR(cudaMemcpy(dog_pyramid_gpu, dog_pyramid_cpu, octvs * sizeof(float**), cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(mask_gpu, *mask_cpu, octvs * sizeof(int**), cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(row_col_gpu, row_col_cpu, octvs * sizeof(int*), cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(mask_gpu, mask_cpu_total, octvs * sizeof(int**), cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(dog_pyramid_gpu, total_dog_pyramid_cpu, octvs * sizeof(float**), cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(row_col_gpu, cpu_row_col_total, octvs * sizeof(int*), cudaMemcpyHostToDevice));
 
 		// ///////////////////////////////////////////////////////////////
 		// allocate block and grid
@@ -192,16 +206,8 @@ namespace sift
 		sift::kernel_detect_extreme <<< thread_grid_size, thread_block_size >>> (dog_pyramid_gpu, mask_gpu, row_col_gpu, intervals);
 
 		// cpy from gpu to cpu
-		for (int o = 0; o < octvs; ++o)
-		{
-			for (int i = 0; i < intervals + 2; ++i)
-			{
-				HANDLE_ERROR(cudaMemcpy((*mask_cpu)[o][i], mask_gpu[o][i], (row_col_cpu[o][0] * row_col_cpu[o][1]) * sizeof(int), cudaMemcpyDeviceToHost));
-			}
-
-		}
-		//HANDLE_ERROR(cudaMemcpy(*mask_cpu, mask_gpu, octvs * sizeof(int **), cudaMemcpyDeviceToHost));
-
+		HANDLE_ERROR(cudaMemcpy(mask_cpu_total, mask_gpu, octvs * sizeof(int**), cudaMemcpyDeviceToHost));
+		
 		// release gpu memory
 		HANDLE_ERROR(cudaFree(dog_pyramid_gpu));
 		HANDLE_ERROR(cudaFree(mask_gpu));
