@@ -179,14 +179,26 @@ namespace sift
 				HANDLE_ERROR(cudaMalloc((void **)&dog_pixel_gpu, pixel_num * sizeof(float)));
 				HANDLE_ERROR(cudaMemcpy(dog_pixel_gpu, dog_pyramid_cpu[o][i], pixel_num * sizeof(float), cudaMemcpyHostToDevice));
 				intervals_pyramid_cpu[i] = dog_pixel_gpu;
+				// release memory on the heap
+				free(pixel_mask_cpu);
 			}
 			HANDLE_ERROR(cudaMemcpy(intervals_pyramid_gpu, intervals_pyramid_cpu, 
 				(intervals + 2) * sizeof(float*), cudaMemcpyHostToDevice));
 			HANDLE_ERROR(cudaMemcpy(intervals_mask_gpu, intervals_mask_cpu,
 				(intervals + 2) * sizeof(int*), cudaMemcpyHostToDevice));
 
+
 			total_dog_pyramid_cpu[o] = intervals_pyramid_gpu;
 			mask_cpu_total[o] = intervals_mask_gpu;
+			
+			// release memory
+			/*for (int i = 0; i < intervals + 2; ++i)
+			{
+				HANDLE_ERROR(cudaFree(intervals_pyramid_cpu[i]));
+				HANDLE_ERROR(cudaFree(intervals_mask_cpu[i]));
+			}*/
+			free(intervals_mask_cpu);
+			free(intervals_pyramid_cpu);
 		}
 		HANDLE_ERROR(cudaMemcpy(mask_gpu, mask_cpu_total, octvs * sizeof(int**), cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(dog_pyramid_gpu, total_dog_pyramid_cpu, octvs * sizeof(float**), cudaMemcpyHostToDevice));
@@ -206,15 +218,22 @@ namespace sift
 		sift::kernel_detect_extreme <<< thread_grid_size, thread_block_size >>> (dog_pyramid_gpu, mask_gpu, row_col_gpu, intervals);
 
 		// cpy from gpu to cpu
-		HANDLE_ERROR(cudaMemcpy(mask_cpu_total, mask_gpu, octvs * sizeof(int**), cudaMemcpyDeviceToHost));
+		*mask_cpu = (int ***)malloc(octvs * sizeof(int **));
+		HANDLE_ERROR(cudaMemcpy(*mask_cpu, mask_gpu, octvs * sizeof(int**), cudaMemcpyDeviceToHost));
 		
-		// release gpu memory
+		// release memory
+		/*for (int o = 0; o < octvs; ++o)
+		{
+			HANDLE_ERROR(cudaFree(mask_cpu_total[o]));
+			HANDLE_ERROR(cudaFree(total_dog_pyramid_cpu[o]));
+		}*/
+		free(total_dog_pyramid_cpu);
+		free(mask_cpu_total);
+		free(cpu_row_col_total);
 		HANDLE_ERROR(cudaFree(dog_pyramid_gpu));
 		HANDLE_ERROR(cudaFree(mask_gpu));
 		HANDLE_ERROR(cudaFree(row_col_gpu));
 
-		// release cpu memory
-		
 		HANDLE_ERROR(cudaDeviceReset());
 	};
 }
