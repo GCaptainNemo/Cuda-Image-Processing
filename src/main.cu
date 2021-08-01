@@ -164,11 +164,19 @@ void test_build_gau_py(const char *option)
 		int ** row_col_lst = (int **)malloc(octave_num * sizeof(int*));
 		int origin_row = src.rows * 2;
 		int origin_col = src.cols * 2;
+		// contiguous memory
 		for (int o = 0; o < octave_num; ++o)
 		{
 			origin_row = (origin_row + 1) / 2;
 			origin_col = (origin_col + 1) / 2;
-			row_col_lst[o] = (int *)malloc(2 * sizeof(int));
+			if (o == 0)
+			{
+				row_col_lst[o] = (int *)malloc(2 * sizeof(int));
+			}
+			else
+			{
+				row_col_lst[o] = row_col_lst[o - 1] + 2;
+			}
 			row_col_lst[o][0] = origin_row;
 			row_col_lst[o][1] = origin_col;
 		}
@@ -258,6 +266,23 @@ int main()
 	//test_down_sample();
 	//test_harris("float");
 	test_build_gau_py("float");
+
+	/*int ** A = new int *[3];
+	for (int i = 0; i < 3; ++i) 
+	{
+		if (i == 0) {
+			A[i] = new int[3 * 3];
+		}
+		else {
+			A[i] = A[i - 1] + 3;
+		}
+	}
+	printf("A[0] = %d, A[1] = %d, A[2] = %d", A[0], A[1], A[2]);
+*/
+	////int * a = new int[5];
+	//a[0] = 255;
+	//delete[] a;
+	//printf("a[0] = %d", a[0]);
 
 	
 
