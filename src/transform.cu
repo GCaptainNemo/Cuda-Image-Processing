@@ -18,16 +18,16 @@ namespace transform {
 		int block_id = blockIdx.x;
 
 		int pixel_id = block_id * blockDim.x + thread_id;
-		if (pixel_id >= img_rows * img_cols * 3)
+		if (pixel_id >= img_rows * img_cols)
 		{
 			return;
 		}
 
-		float dst_y = (float) (pixel_id / img_cols / 3);  // row
-		float dst_x = (float) ((pixel_id / 3)% img_cols);  // col
+		float dst_y = (float) (pixel_id / img_cols);  // row
+		float dst_x = (float) (pixel_id% img_cols);  // col
 		for (int i = 0; i < 3; ++i) 
 		{
-			gpu_result[pixel_id + i] = 0;
+			gpu_result[pixel_id * 3 + i] = 0;
 		}
 		for (int i = 0; i < grid_rows; ++i)
 		{
@@ -88,11 +88,11 @@ namespace transform {
 							(1 - proportion_x) * proportion_y * gpu_img[left_down_idx + offset] +
 							proportion_x * (1 - proportion_y) * gpu_img[right_down_idx + offset] + 
 							proportion_x * proportion_y * gpu_img[right_up_idx + offset];
-						if (gpu_result[pixel_id + offset] > 255) {
-							gpu_result[pixel_id + offset] = 255;
+						if (gpu_result[pixel_id * 3 + offset] > 255) {
+							gpu_result[pixel_id * 3 + offset] = 255;
 						}
 						else {
-							gpu_result[pixel_id + offset] = (int)res;
+							gpu_result[pixel_id * 3 + offset] = (int)res;
 						}
 					}
 				}
@@ -146,7 +146,7 @@ namespace transform {
 		// //////////////////////////////////////////////////////////////////////////////////////////////
 
 		int thread_num = getThreadNum();
-		int block_num = (img_cols * img_rows * 3 - 0.5) / thread_num + 1;
+		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
 		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_dst_grid_pos, gpu_src_grid_pos,
@@ -198,7 +198,7 @@ namespace transform {
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
-		transform::conv_kernel << < grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
+		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
 
 		HANDLE_ERROR(cudaMemcpy(dst, gpu_result, img_size_t, cudaMemcpyDeviceToHost));
 
