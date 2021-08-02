@@ -7,7 +7,7 @@
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
 namespace transform {
-	__global__ void transform_kernel(int * gpu_img, float * gpu_dst_grid_pos, float * gpu_src_grid_pos, 
+	__global__ void transform_kernel(int * gpu_img, float * gpu_dst_grid_pos, float * gpu_src_grid_pos,
 		float * gpu_homography_dst_to_src, int * gpu_result,
 		const int img_cols, const int img_rows, const int grid_cols, const int grid_rows)
 	{
@@ -23,9 +23,9 @@ namespace transform {
 			return;
 		}
 
-		float dst_y = (float) (pixel_id / img_cols);  // row
-		float dst_x = (float) (pixel_id% img_cols);  // col
-		for (int i = 0; i < 3; ++i) 
+		float dst_y = (float)(pixel_id / img_cols);  // row
+		float dst_x = (float)(pixel_id% img_cols);  // col
+		for (int i = 0; i < 3; ++i)
 		{
 			gpu_result[pixel_id * 3 + i] = 0;
 		}
@@ -34,7 +34,7 @@ namespace transform {
 			for (int j = 0; j < grid_cols; ++j)
 			{
 				int id = i * (grid_cols + 1) + j;
-				float left_up_delta_x = gpu_dst_grid_pos[id * 2] -dst_x;
+				float left_up_delta_x = gpu_dst_grid_pos[id * 2] - dst_x;
 				float left_up_delta_y = gpu_dst_grid_pos[id * 2 + 1] - dst_y;
 				float left_down_delta_x = gpu_dst_grid_pos[(id + grid_cols + 1) * 2] - dst_x;
 				float left_down_delta_y = gpu_dst_grid_pos[(id + grid_cols + 1) * 2 + 1] - dst_y;
@@ -57,7 +57,7 @@ namespace transform {
 				if (prod_3 <= 0) {
 					continue;
 				}
-				float prod_4 = right_up_delta_x * left_up_delta_y- left_up_delta_x * right_up_delta_y;
+				float prod_4 = right_up_delta_x * left_up_delta_y - left_up_delta_x * right_up_delta_y;
 				if (prod_4 < 0) {
 					continue;
 				}
@@ -70,7 +70,7 @@ namespace transform {
 				float normalize_factor = gpu_homography_dst_to_src[homography_id * 9 + 6] * dst_x + gpu_homography_dst_to_src[homography_id * 9 + 7] * dst_y + gpu_homography_dst_to_src[homography_id * 9 + 8];
 				src_x /= normalize_factor;
 				src_y /= normalize_factor;
-				if (src_x >= 0 && src_x < img_cols && src_y >= 0 && src_y < img_rows) 
+				if (src_x >= 0 && src_x < img_cols && src_y >= 0 && src_y < img_rows)
 				{
 					int left_up_x = (int)src_x;
 					int left_up_y = (int)src_y;
@@ -83,10 +83,10 @@ namespace transform {
 					float proportion_y = src_y - left_up_y;
 					for (int offset = 0; offset < 3; ++offset)
 					{
-						
-						float res = (1 - proportion_x) * (1 - proportion_y) * gpu_img[left_up_idx + offset] + 
+
+						float res = (1 - proportion_x) * (1 - proportion_y) * gpu_img[left_up_idx + offset] +
 							(1 - proportion_x) * proportion_y * gpu_img[left_down_idx + offset] +
-							proportion_x * (1 - proportion_y) * gpu_img[right_down_idx + offset] + 
+							proportion_x * (1 - proportion_y) * gpu_img[right_down_idx + offset] +
 							proportion_x * proportion_y * gpu_img[right_up_idx + offset];
 						if (gpu_result[pixel_id * 3 + offset] > 255) {
 							gpu_result[pixel_id * 3 + offset] = 255;
@@ -97,7 +97,7 @@ namespace transform {
 					}
 				}
 				return;
-				
+
 			}
 		}
 	}
@@ -170,25 +170,34 @@ namespace transform {
 		cudaDeviceReset();
 	}
 
-	void cuda_transform(float * src, float * dst, int img_rows, int img_cols, float * kernel, int kernel_dim)
+	void cuda_transform(int * src, int * dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
+		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows, int img_cols, int img_rows)
 	{
+		// read linshi and convert to gray image
 		// read linshi and convert to gray image
 		cudaSetDevice(0);
 
 		float * gpu_img = NULL;
 		float * gpu_result = NULL;
-		float * gpu_kernel = NULL;
+		float * gpu_dst_grid_pos = NULL;
+		float * gpu_src_grid_pos = NULL;
+		float * gpu_homography_dst_to_src = NULL;
 
+		size_t img_size = img_cols * img_rows * sizeof(uint3);
+		size_t grid_pos_size = (grid_cols + 1)* (grid_rows + 1) * 2 * sizeof(float);
+		size_t homography_size = grid_cols * grid_rows * 9 * sizeof(float);
 
-		size_t img_size_t = img_cols * img_rows * sizeof(float);
-		size_t kernel_size_t = kernel_dim * kernel_dim * sizeof(float);
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_img, img_size));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_result, img_size));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_dst_grid_pos, grid_pos_size));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_src_grid_pos, grid_pos_size));
+		HANDLE_ERROR(cudaMalloc((void **)& gpu_homography_dst_to_src, homography_size));
 
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_img, img_size_t));
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_result, img_size_t));
-		HANDLE_ERROR(cudaMalloc((void **)& gpu_kernel, kernel_size_t));
 		// memory copy kernel and linshi from host to device
-		HANDLE_ERROR(cudaMemcpy(gpu_img, (float *)src, img_size_t, cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(gpu_kernel, kernel, kernel_size_t, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_img, src, img_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_dst_grid_pos, cpu_dst_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_src_grid_pos, cpu_src_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMemcpy(gpu_homography_dst_to_src, cpu_homography_dst_to_src, homography_size, cudaMemcpyHostToDevice));
 
 		// //////////////////////////////////////////////////////////////////////////////////////////////
 		// resident thread; every pixel of result correspond to a thread;
@@ -198,16 +207,20 @@ namespace transform {
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
-		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_kernel, gpu_result, img_cols, img_rows, kernel_dim);
+		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_dst_grid_pos, gpu_src_grid_pos,
+			gpu_homography_dst_to_src, gpu_result,
+			img_cols, img_rows, grid_cols, grid_rows);
 
-		HANDLE_ERROR(cudaMemcpy(dst, gpu_result, img_size_t, cudaMemcpyDeviceToHost));
 
-		// release gpu memory
+		HANDLE_ERROR(cudaMemcpy(dst, gpu_result, img_size, cudaMemcpyDeviceToHost));
+
 		HANDLE_ERROR(cudaFree(gpu_img));
-		HANDLE_ERROR(cudaFree(gpu_kernel));
+		HANDLE_ERROR(cudaFree(gpu_src_grid_pos));
+		HANDLE_ERROR(cudaFree(gpu_dst_grid_pos));
+		HANDLE_ERROR(cudaFree(gpu_homography_dst_to_src));
 		HANDLE_ERROR(cudaFree(gpu_result));
 		cudaDeviceReset();
-	};
+	}
 
 
 }

@@ -10,9 +10,10 @@ namespace transform
 		const int img_cols, const int img_rows, const int grid_cols, const int grid_rows);
 
 	// float replace cv::Mat
-	void cuda_transform(float * src, float * dst, int img_row, int img_col, float * kernel, int kernel_dim);
+	void cuda_transform(int * src, int * dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
+		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows, int img_cols, int img_rows);
 
-	void cuda_transform(cv::Mat & src, cv::Mat & dst, float * gpu_dst_grid_pos, float * gpu_src_grid_pos,
-		float * gpu_homography_dst_to_src)
+	void cuda_transform(cv::Mat & src, cv::Mat & dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
+		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows);
 
 }
