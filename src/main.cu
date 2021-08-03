@@ -265,7 +265,14 @@ int main()
 	//test_cuda_conv("mat");
 	//test_down_sample();
 	//test_harris("float");
-	test_build_gau_py("float");
+	//test_build_gau_py("float");
+	printf("thread num = %d", getThreadNum());
+	int a[2][4] = { {1, 2, 3, 4}, {2, 3, 4, 5} };
+	for (int i = 0; i < 16; ++i) 
+	{
+		printf("a[%d] = %d", i, a[i]);
+	}
+
 
 	/*int ** A = new int *[3];
 	for (int i = 0; i < 3; ++i) 

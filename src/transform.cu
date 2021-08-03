@@ -1,38 +1,50 @@
 #include <stdio.h>
 #include "../include/transform.h"
-#include "opencv2/opencv.hpp"
 #include "../include/utils.h"
+#include "pybind11/pybind11.h"
+
+#include <opencv2/opencv.hpp>
 #include <math.h>
+
+// pytho API
+
 
 #define HANDLE_ERROR(err) (HandleError(err, __FILE__, __LINE__));
 
 namespace transform {
-	__global__ void transform_kernel(int * gpu_img, float * gpu_dst_grid_pos, float * gpu_src_grid_pos,
-		float * gpu_homography_dst_to_src, int * gpu_result,
-		const int img_cols, const int img_rows, const int grid_cols, const int grid_rows)
+	__global__ void transform_kernel(int * gpu_img, int * gpu_result, float * gpu_dst_grid_pos,
+	float * gpu_homography_dst_to_src, const int img_cols, const int img_rows, const int grid_cols, const int grid_rows)
 	{
 		// rgb img as input(row dst_x col dst_x 3)
 		// grid_pos((grid_row + 1) dst_x (grid_col + 1) dst_x 2)
 		// homography(grid_row dst_x grid_col dst_x 9)
 		int thread_id = threadIdx.x;
 		int block_id = blockIdx.x;
+		
 
 		int pixel_id = block_id * blockDim.x + thread_id;
 		if (pixel_id >= img_rows * img_cols)
 		{
 			return;
 		}
-
+		
 		float dst_y = (float)(pixel_id / img_cols);  // row
 		float dst_x = (float)(pixel_id% img_cols);  // col
+		if (pixel_id == 12743)
+		{	
+			printf("pixel_id = %d	, dst_y = %f,	dst_x =%f", pixel_id, dst_y, dst_x);
+			printf("img_cols = %d, img_rows = %d, grid_cols = %d, grid_rows = %d", img_cols, img_rows, grid_cols, grid_rows);
+		}	
 		for (int i = 0; i < 3; ++i)
 		{
 			gpu_result[pixel_id * 3 + i] = 0;
 		}
+		
 		for (int i = 0; i < grid_rows; ++i)
 		{
 			for (int j = 0; j < grid_cols; ++j)
 			{
+				// grid points id(顶点并网格数多1)
 				int id = i * (grid_cols + 1) + j;
 				float left_up_delta_x = gpu_dst_grid_pos[id * 2] - dst_x;
 				float left_up_delta_y = gpu_dst_grid_pos[id * 2 + 1] - dst_y;
@@ -46,49 +58,59 @@ namespace transform {
 				// cross product
 				// ////////////////////////////////////////////////////////////////////////
 				float prod_1 = left_up_delta_x * left_down_delta_y - left_up_delta_y * left_down_delta_x;
-				if (prod_1 < 0) {
+				if (prod_1 > 0) {
 					continue;
 				}
 				float prod_2 = left_down_delta_x * right_down_delta_y - left_down_delta_y * right_down_delta_x;
-				if (prod_1 <= 0) {
+				if (prod_2 >= 0) {
 					continue;
 				}
-				float prod_3 = right_down_delta_x * right_up_delta_y - right_up_delta_x * right_down_delta_y;
-				if (prod_3 <= 0) {
+				float prod_3 = right_down_delta_x * right_up_delta_y - right_down_delta_y * right_up_delta_x;
+				if (prod_3 >= 0) {
 					continue;
 				}
-				float prod_4 = right_up_delta_x * left_up_delta_y - left_up_delta_x * right_up_delta_y;
-				if (prod_4 < 0) {
+				float prod_4 = right_up_delta_x * left_up_delta_y - right_up_delta_y * left_up_delta_x;
+				if (prod_4 > 0) {
 					continue;
 				}
 				// //////////////////////////////////////////////////////////////////////////////
 				// dst_x, dst_y inside grid
 				// //////////////////////////////////////////////////////////////////////////////
 				int homography_id = i * grid_cols + j;
-				float src_x = gpu_homography_dst_to_src[homography_id * 9] * dst_x + gpu_homography_dst_to_src[homography_id * 9 + 1] * dst_y + gpu_homography_dst_to_src[homography_id * 9 + 2];
-				float src_y = gpu_homography_dst_to_src[homography_id * 9 + 3] * dst_x + gpu_homography_dst_to_src[homography_id * 9 + 4] * dst_y + gpu_homography_dst_to_src[homography_id * 9 + 5];
-				float normalize_factor = gpu_homography_dst_to_src[homography_id * 9 + 6] * dst_x + gpu_homography_dst_to_src[homography_id * 9 + 7] * dst_y + gpu_homography_dst_to_src[homography_id * 9 + 8];
-				src_x /= normalize_factor;
-				src_y /= normalize_factor;
+				float src_x = gpu_homography_dst_to_src[homography_id * 9 + 0] * dst_x + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 1] * dst_y + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 2];
+				float src_y = gpu_homography_dst_to_src[homography_id * 9 + 3] * dst_x + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 4] * dst_y + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 5];
+				float nor_f = gpu_homography_dst_to_src[homography_id * 9 + 6] * dst_x + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 7] * dst_y + 
+							  gpu_homography_dst_to_src[homography_id * 9 + 8];
+				src_x = src_x / nor_f;
+				src_y = src_y / nor_f;
+				
 				if (src_x >= 0 && src_x < img_cols && src_y >= 0 && src_y < img_rows)
 				{
+					// printf("src_x = %f, src_y = %f", src_x, src_y);
 					int left_up_x = (int)src_x;
 					int left_up_y = (int)src_y;
+					// printf("left_up_x = %d, left_up_y = %d", left_up_x, left_up_y);
+									
 					int left_up_idx = (left_up_x + left_up_y * img_cols) * 3;
 					int left_down_idx = (left_up_x + (left_up_y + 1)* img_cols) * 3;
 					int right_down_idx = (left_up_x + 1 + (left_up_y + 1)* img_cols) * 3;
 					int right_up_idx = (left_up_x + 1 + left_up_y * img_cols) * 3;
 
-					float proportion_x = src_x - left_up_x;
-					float proportion_y = src_y - left_up_y;
+					float proportion_x = src_x - (float)left_up_x;
+					float proportion_y = src_y - (float)left_up_y;
 					for (int offset = 0; offset < 3; ++offset)
 					{
 
 						float res = (1 - proportion_x) * (1 - proportion_y) * gpu_img[left_up_idx + offset] +
 							(1 - proportion_x) * proportion_y * gpu_img[left_down_idx + offset] +
-							proportion_x * (1 - proportion_y) * gpu_img[right_down_idx + offset] +
-							proportion_x * proportion_y * gpu_img[right_up_idx + offset];
-						if (gpu_result[pixel_id * 3 + offset] > 255) {
+							proportion_x * (1 - proportion_y) * gpu_img[right_up_idx + offset] +
+							proportion_x * proportion_y * gpu_img[right_down_idx + offset];
+						if (res > 255) {
 							gpu_result[pixel_id * 3 + offset] = 255;
 						}
 						else {
@@ -101,6 +123,8 @@ namespace transform {
 			}
 		}
 	}
+	
+	
 
 	void cuda_transform(cv::Mat & src, cv::Mat & dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
 		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows)
@@ -119,8 +143,8 @@ namespace transform {
 		int img_rows = linshi.rows;
 
 
-		float * gpu_img = NULL;
-		float * gpu_result = NULL;
+		int * gpu_img = NULL;
+		int * gpu_result = NULL;
 		float * gpu_dst_grid_pos = NULL;
 		float * gpu_src_grid_pos = NULL;
 		float * gpu_homography_dst_to_src = NULL;
@@ -177,8 +201,8 @@ namespace transform {
 		// read linshi and convert to gray image
 		cudaSetDevice(0);
 
-		float * gpu_img = NULL;
-		float * gpu_result = NULL;
+		int * gpu_img = NULL;
+		int * gpu_result = NULL;
 		float * gpu_dst_grid_pos = NULL;
 		float * gpu_src_grid_pos = NULL;
 		float * gpu_homography_dst_to_src = NULL;
