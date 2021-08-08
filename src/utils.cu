@@ -18,7 +18,8 @@ int getThreadNum()
 	cudaGetDeviceProperties(&prop, 0);
 	// cuda software arthitecture: thread ---> block ---> grid;
 	printf("max thread num: %d\n", prop.maxThreadsPerBlock);
-	printf("max grid dimension %d, %d, %d \n", prop.maxGridSize[0], prop.maxGridSize[1], prop.maxGridSize[2]);
+	printf("max grid dimension %d, %d, %d \n", 
+		prop.maxGridSize[0], prop.maxGridSize[1], prop.maxGridSize[2]);
 	return prop.maxThreadsPerBlock;
 }
 

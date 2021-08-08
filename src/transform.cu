@@ -126,7 +126,7 @@ namespace transform {
 	
 	
 
-	void cuda_transform(cv::Mat & src, cv::Mat & dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
+	void cuda_transform(cv::Mat & src, cv::Mat & dst, float * cpu_dst_grid_pos, 
 		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows)
 	{
 		// read linshi and convert to gray image
@@ -162,7 +162,6 @@ namespace transform {
 		// memory copy kernel and linshi from host to device
 		HANDLE_ERROR(cudaMemcpy(gpu_img, linshi.data, img_size, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_dst_grid_pos, cpu_dst_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(gpu_src_grid_pos, cpu_src_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_homography_dst_to_src, cpu_homography_dst_to_src, homography_size, cudaMemcpyHostToDevice));
 
 		// //////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,8 +172,9 @@ namespace transform {
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
-		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_dst_grid_pos, gpu_src_grid_pos,
-			gpu_homography_dst_to_src, gpu_result,
+		transform::transform_kernel << < grid_size, block_size >> > 
+			(gpu_img, gpu_result, gpu_dst_grid_pos,
+			gpu_homography_dst_to_src,
 			img_cols, img_rows, grid_cols, grid_rows);
 
 		float * cpu_result = new float[img_cols * img_rows * 3];
@@ -194,7 +194,7 @@ namespace transform {
 		cudaDeviceReset();
 	}
 
-	void cuda_transform(int * src, int * dst, float * cpu_dst_grid_pos, float * cpu_src_grid_pos,
+	void cuda_transform(int * src, int * dst, float * cpu_dst_grid_pos, 
 		float * cpu_homography_dst_to_src, int grid_cols, int grid_rows, int img_cols, int img_rows)
 	{
 		// read linshi and convert to gray image
@@ -220,7 +220,6 @@ namespace transform {
 		// memory copy kernel and linshi from host to device
 		HANDLE_ERROR(cudaMemcpy(gpu_img, src, img_size, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_dst_grid_pos, cpu_dst_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
-		HANDLE_ERROR(cudaMemcpy(gpu_src_grid_pos, cpu_src_grid_pos, grid_pos_size, cudaMemcpyHostToDevice));
 		HANDLE_ERROR(cudaMemcpy(gpu_homography_dst_to_src, cpu_homography_dst_to_src, homography_size, cudaMemcpyHostToDevice));
 
 		// //////////////////////////////////////////////////////////////////////////////////////////////
@@ -231,8 +230,9 @@ namespace transform {
 		int block_num = (img_cols * img_rows - 0.5) / thread_num + 1;
 		dim3 grid_size(block_num, 1, 1);
 		dim3 block_size(thread_num, 1, 1);
-		transform::transform_kernel << < grid_size, block_size >> > (gpu_img, gpu_dst_grid_pos, gpu_src_grid_pos,
-			gpu_homography_dst_to_src, gpu_result,
+		transform::transform_kernel << < grid_size, block_size >> > 
+			(gpu_img, gpu_result, gpu_dst_grid_pos,
+			gpu_homography_dst_to_src, 
 			img_cols, img_rows, grid_cols, grid_rows);
 
 
