@@ -4,6 +4,7 @@
 #include "../include/harris.h"
 #include "../include/gau_pyr.h"
 #include "../include/sift.h"
+#include "../include/morphology.h"
 #include "opencv2/opencv.hpp"
 #include <vector>
 #include<opencv2/core/core.hpp>
@@ -48,6 +49,37 @@ void test_cuda_conv(const char *option)
 	cv::waitKey(0);
 	
 }; // test_cuda_conv()
+
+void test_cuda_morphology(const char *option)
+{
+	const char * address = "../data/img1.png";
+	cv::Mat src = cv::imread(address);
+	rgb2gray_01(src, src, true);
+	cv::Mat dst;
+	const int structure_row = 100;
+	const int structure_col = 100;
+	bool * structure = (bool *)malloc(structure_row * structure_col * sizeof(bool));
+	for (int i = 0; i < structure_col * structure_row; ++i) 
+	{
+		structure[i] = true;
+	}
+	if (strcmp(option, "erode") == 0)
+	{
+		morphology::launch_imerode(src, dst, structure, structure_col, structure_row, 2, 2);
+	}
+	else if(strcmp(option, "dilate") == 0){
+		morphology::launch_imdilate(src, dst, structure, structure_col, structure_row, 2, 2);
+	}
+	cv::namedWindow("src", cv::WINDOW_NORMAL);
+	cv::imshow("src", src);
+
+	cv::namedWindow("dst", cv::WINDOW_NORMAL);
+	cv::imshow("dst", dst);
+	cv::waitKey(0);
+	free(structure);
+
+}; // test_cuda_homography()
+
 
 void test_pyr_down() 
 {
@@ -260,37 +292,16 @@ int main()
 	//harris::opencv_harris(address);
 
 	// ///////////////////////////////////////
-	
-	printf("kernel\n");
+	//test_cuda_morphology("dilate");
+	test_cuda_morphology("erode");
+
 	//test_cuda_conv("mat");
 	//test_down_sample();
 	//test_harris("float");
 	//test_build_gau_py("float");
-	printf("thread num = %d", getThreadNum());
-	int a[2][4] = { {1, 2, 3, 4}, {2, 3, 4, 5} };
-	for (int i = 0; i < 16; ++i) 
-	{
-		printf("a[%d] = %d", i, a[i]);
-	}
-
-
-	/*int ** A = new int *[3];
-	for (int i = 0; i < 3; ++i) 
-	{
-		if (i == 0) {
-			A[i] = new int[3 * 3];
-		}
-		else {
-			A[i] = A[i - 1] + 3;
-		}
-	}
-	printf("A[0] = %d, A[1] = %d, A[2] = %d", A[0], A[1], A[2]);
-*/
+	
 	////int * a = new int[5];
-	//a[0] = 255;
-	//delete[] a;
-	//printf("a[0] = %d", a[0]);
-
+	
 	
 
 	// conv::opencv_conv(address);*/
