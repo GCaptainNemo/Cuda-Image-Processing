@@ -31,4 +31,5 @@ python xxx.py
 2. 图像Harris角点提取(`namespace harris`)
 3. 构造高斯图像金字塔(`namespace gau_pyr`)   
 4. 构造高斯差分(DoG)金字塔(`namespace gau_pyr`)
-5. 提取图像边缘 PyCUDA
+5. 灰度图像形态学操作(腐蚀、膨胀)(`namespace morphology`)
+6. 提取图像边缘 PyCUDA

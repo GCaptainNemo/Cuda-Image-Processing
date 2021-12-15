@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(cuda_imape_processing)
+project(cuda_imape_processing LANGUAGES CXX CUDA)
 
 find_package(CUDA REQUIRED)
 find_package(PythonLibs REQUIRED)
@@ -22,6 +22,10 @@ CUDA_ADD_EXECUTABLE(${PROJECT_NAME}
 					${DIR_SRCS}
 					${DIR_HEADERS}
 				)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
+set_target_properties( ${PORJECT_NAME}
+                       PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
 target_link_libraries(${PROJECT_NAME}
 		${OpenCV_LIBRARIES}
 		${PYTHON_LIBRARIES}
